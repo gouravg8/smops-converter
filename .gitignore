@@ -1,0 +1,6 @@
+bin/
+build/
+frontend/dist/
+frontend/node_modules/
+.gocache/
+.gomodcache/
