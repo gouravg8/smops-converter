@@ -58,6 +58,21 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	runtime.OnFileDrop(ctx, func(x, y int, paths []string) {
+		if len(paths) == 0 {
+			return
+		}
+		info, err := inspectFile(paths[0])
+		if err != nil {
+			runtime.EventsEmit(ctx, "file-dropped-error", err.Error())
+			return
+		}
+		runtime.EventsEmit(ctx, "file-dropped", info)
+	})
+}
+
+func (a *App) GetFileInfo(path string) (*FileInfo, error) {
+	return inspectFile(path)
 }
 
 func (a *App) SelectFile() (*FileInfo, error) {

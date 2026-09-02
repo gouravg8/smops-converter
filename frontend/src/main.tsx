@@ -44,6 +44,7 @@ function App() {
   const [installingFFmpeg, setInstallingFFmpeg] = useState(false);
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [error, setError] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const formats = useMemo(() => {
     if (file?.kind === 'video') return videoFormats;
@@ -62,6 +63,53 @@ function App() {
     return () => EventsOff('job-progress');
   }, []);
 
+  // Wails drag & drop via Go: file-dropped + error
+  useEffect(() => {
+    const onDropped = (info: FileInfo) => {
+      setError('');
+      setResult(null);
+      setFile(info);
+      setOutputName(suggestOutputName(info.name, tab));
+      setFormat(info.kind === 'video' ? 'mp4' : 'jpg');
+      setProgress(0);
+      setProgressStage('Ready');
+      setIsDragOver(false);
+    };
+    const onError = (msg: string) => {
+      setError(msg);
+      setIsDragOver(false);
+    };
+    EventsOn('file-dropped', onDropped);
+    EventsOn('file-dropped-error', onError);
+    // also listen to raw wails:file-drop for safety (x,y,paths)
+    EventsOn('wails:file-drop', (_x: number, _y: number, paths: string[]) => {
+      if (paths && paths.length > 0) {
+        appApi
+          .GetFileInfo(paths[0])
+          .then(onDropped)
+          .catch((e: any) => onError(e instanceof Error ? e.message : String(e)));
+      }
+    });
+    return () => {
+      EventsOff('file-dropped');
+      EventsOff('file-dropped-error');
+      EventsOff('wails:file-drop');
+    };
+  }, [tab]);
+
+  // Prevent browser default drag handling that causes ghost glitch
+  useEffect(() => {
+    const prevent = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('dragover', prevent);
+    window.addEventListener('drop', prevent);
+    return () => {
+      window.removeEventListener('dragover', prevent);
+      window.removeEventListener('drop', prevent);
+    };
+  }, []);
+
   useEffect(() => {
     if (!formats.includes(format)) {
       setFormat(formats[0]);
@@ -73,6 +121,51 @@ function App() {
       setOutputName(suggestOutputName(file.name, tab));
     }
   }, [tab]);
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    setIsDragOver(true);
+  }
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    // only leave if leaving dropzone itself
+    if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragOver(false);
+    }
+  }
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    // Try HTML5 files first (for browser dev)
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      const f = files[0] as any;
+      // In Wails, dropped file path is available via file.path (webkit) or via wails event
+      const droppedPath = f.path as string | undefined;
+      if (droppedPath) {
+        try {
+          const info = await appApi.GetFileInfo(droppedPath);
+          setError('');
+          setResult(null);
+          setFile(info);
+          setOutputName(suggestOutputName(info.name, tab));
+          setFormat(info.kind === 'video' ? 'mp4' : 'jpg');
+          setProgress(0);
+          setProgressStage('Ready');
+          return;
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+          return;
+        }
+      }
+      // Fallback: wails will already emit file-dropped, just wait
+      return;
+    }
+  }
 
   async function selectFile() {
     setError('');
@@ -171,7 +264,13 @@ function App() {
   const actionLabel = tab === 'compress' ? 'Compress file' : 'Convert format';
 
   return (
-    <div className="min-h-screen w-screen bg-[#080808] text-foreground flex flex-col overflow-hidden selection:bg-white selection:text-black">
+    <div
+      className="min-h-screen w-screen bg-[#080808] text-foreground flex flex-col overflow-hidden selection:bg-white selection:text-black"
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/* Top nav - premium black, no blue bg */}
       <header className="h-[56px] flex items-center justify-between border-b border-white/[0.06] bg-[#0a0a0a] px-6 shrink-0">
         <div className="flex items-center gap-3">
@@ -196,6 +295,18 @@ function App() {
         </div>
       </header>
 
+      {isDragOver && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] grid place-items-center pointer-events-none">
+          <div className="rounded-xl border border-white/15 bg-[#111111] px-8 py-6 text-center shadow-2xl">
+            <div className="mx-auto h-12 w-12 grid place-items-center rounded-full bg-white text-black mb-3">
+              <Upload className="h-6 w-6" />
+            </div>
+            <div className="text-sm font-medium text-white">Drop file here</div>
+            <div className="text-xs text-zinc-500 mt-1">JPG, PNG, WEBP, MP4, MOV, MKV...</div>
+          </div>
+        </div>
+      )}
+
       {/* Workspace - full dims, shades of black */}
       <main className="flex-1 w-full px-4 md:px-6 py-6 overflow-auto bg-[#080808]">
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
@@ -214,12 +325,16 @@ function App() {
               <CardContent className="p-5 md:p-6 space-y-5">
                 <button
                   onClick={selectFile}
-                  className={`w-full flex items-center gap-4 rounded-xl border p-5 text-left transition-all cursor-pointer ${file ? 'border-white/15 bg-white/[0.04] hover:bg-white/[0.06]' : 'border-dashed border-white/10 bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/15'}`}
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`w-full flex items-center gap-4 rounded-xl border p-5 text-left transition-all cursor-pointer ${isDragOver ? 'border-white bg-white/[0.08] border-solid' : file ? 'border-white/15 bg-white/[0.04] hover:bg-white/[0.06]' : 'border-dashed border-white/10 bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/15'}`}
                 >
-                  <div className={`h-12 w-12 shrink-0 grid place-items-center rounded-lg border ${file ? 'bg-white text-black border-white' : 'bg-[#0a0a0a] text-zinc-400 border-white/10'}`}>{file ? selectedIcon : <Upload className="h-5 w-5" />}</div>
+                  <div className={`h-12 w-12 shrink-0 grid place-items-center rounded-lg border transition-colors ${isDragOver ? 'bg-white text-black border-white' : file ? 'bg-white text-black border-white' : 'bg-[#0a0a0a] text-zinc-400 border-white/10'}`}>{isDragOver ? <Download className="h-5 w-5 animate-bounce" /> : file ? selectedIcon : <Upload className="h-5 w-5" />}</div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14px] font-medium text-zinc-100">{file ? file.name : 'Select image or video'}</div>
-                    <div className="truncate text-xs text-zinc-500 mt-1 font-normal">{file ? `${file.kind.toUpperCase()} • ${file.extension.toUpperCase()} • ${file.sizeLabel}` : 'JPG, PNG, WEBP, MP4, MOV, MKV, AVI, WEBM'}</div>
+                    <div className="truncate text-[14px] font-medium text-zinc-100">{isDragOver ? 'Drop file here' : file ? file.name : 'Select image or video'}</div>
+                    <div className={`truncate text-xs mt-1 font-normal ${isDragOver ? 'text-zinc-300' : 'text-zinc-500'}`}>{isDragOver ? 'Release to load image or video' : file ? `${file.kind.toUpperCase()} • ${file.extension.toUpperCase()} • ${file.sizeLabel}` : 'JPG, PNG, WEBP, MP4, MOV, MKV, AVI, WEBM • or drag & drop'}</div>
                   </div>
                 </button>
 

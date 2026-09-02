@@ -109,6 +109,22 @@
   }
 }
 
+/* Wails drag & drop - prevent glitch ghost and highlight drop target */
+html {
+  --wails-drop-target: none;
+}
+[style*="--wails-drop-target: drop"] {
+  outline: 1px solid rgba(255,255,255,0.15) !important;
+  outline-offset: -1px;
+}
+/* Hide default browser drag image ghost glitch */
+* {
+  -webkit-user-drag: none;
+}
+[draggable="true"] {
+  -webkit-user-drag: element;
+}
+
 /* keep legacy full-size layout helpers */
 html, body, #root {
   width: 100%;

@@ -21,6 +21,12 @@ func main() {
 		MinWidth:         980,
 		MinHeight:        640,
 		WindowStartState: options.Maximised,
+		DragAndDrop: &options.DragAndDrop{
+			EnableFileDrop:     true,
+			CSSDropProperty:    "--wails-drop-target",
+			CSSDropValue:       "drop",
+			DisableWebViewDrop: false,
+		},
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
