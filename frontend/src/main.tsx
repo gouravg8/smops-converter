@@ -528,7 +528,7 @@ function App() {
       </main>
 
       <footer className="h-9 flex items-center justify-center px-6 border-t border-white/[0.06] bg-[#050505] text-[11px] tracking-wide text-zinc-600 shrink-0">
-        <span className="font-medium">SmoothOps © 2026 • NEXPRO AI LLP • All Rights Reserved.</span>
+        <span className="font-medium">SmoothOps © {new Date().getFullYear()} • NEXPRO AI LLP • All Rights Reserved.</span>
       </footer>
     </div>
   );
