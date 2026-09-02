@@ -3,13 +3,16 @@ import { createRoot } from 'react-dom/client';
 import {
   CheckCircle2,
   Download,
+  ExternalLink,
   FileImage,
   FileVideo,
   FolderOpen,
   Gauge,
   Heart,
   Loader2,
+  PackagePlus,
   Repeat2,
+  Trash2,
   Upload
 } from 'lucide-react';
 import './style.css';
@@ -30,6 +33,7 @@ function App() {
   const [progress, setProgress] = useState(0);
   const [progressStage, setProgressStage] = useState('Ready');
   const [ffmpegReady, setFfmpegReady] = useState(true);
+  const [installingFFmpeg, setInstallingFFmpeg] = useState(false);
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [error, setError] = useState('');
 
@@ -81,6 +85,16 @@ function App() {
     if (selected) setOutputDir(selected);
   }
 
+  function removeCurrentFile() {
+    setFile(null);
+    setResult(null);
+    setError('');
+    setOutputName('');
+    setProgress(0);
+    setProgressStage('Ready');
+    setFormat('jpg');
+  }
+
   async function runJob() {
     if (!file) {
       setError('Choose an image or video first.');
@@ -114,6 +128,38 @@ function App() {
     }
   }
 
+  async function installFFmpeg() {
+    setInstallingFFmpeg(true);
+    setError('');
+    setProgress(0);
+    setProgressStage('Installing FFmpeg');
+    try {
+      await appApi().InstallFFmpeg();
+      const ready = await appApi().CheckFFmpeg();
+      setFfmpegReady(ready);
+      setProgress(ready ? 100 : 0);
+      setProgressStage(ready ? 'FFmpeg ready' : 'Install instructions opened');
+    } catch (err) {
+      const ready = await appApi().CheckFFmpeg();
+      setFfmpegReady(ready);
+      setError(err instanceof Error ? err.message : String(err));
+      setProgress(ready ? 100 : 0);
+      setProgressStage(ready ? 'FFmpeg ready' : 'Ready');
+    } finally {
+      setInstallingFFmpeg(false);
+    }
+  }
+
+  async function openResultFolder() {
+    if (!result) return;
+    setError('');
+    try {
+      await appApi().OpenInFolder(result.outputPath);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   const selectedIcon = file?.kind === 'video' ? <FileVideo size={28} /> : <FileImage size={28} />;
   const actionLabel = tab === 'compress' ? 'Compress file' : 'Convert format';
 
@@ -123,7 +169,7 @@ function App() {
         <header className="topbar">
           <div>
             <p className="eyebrow">Desktop media utility</p>
-            <h1>Nex Converter</h1>
+            <h1>Gonver</h1>
           </div>
           <div className={ffmpegReady ? 'status ready' : 'status missing'}>
             <span />
@@ -155,6 +201,13 @@ function App() {
                 </span>
               </div>
             </button>
+
+            {file && (
+              <button className="remove-file" onClick={removeCurrentFile}>
+                <Trash2 size={17} />
+                Remove current file
+              </button>
+            )}
 
             <div className="form-grid">
               {tab === 'compress' && (
@@ -214,6 +267,13 @@ function App() {
               </div>
             </div>
 
+            {!ffmpegReady && (
+              <button className="secondary-action" onClick={installFFmpeg} disabled={installingFFmpeg}>
+                {installingFFmpeg ? <Loader2 className="spin" size={18} /> : <PackagePlus size={18} />}
+                {installingFFmpeg ? 'Installing FFmpeg...' : 'Install FFmpeg'}
+              </button>
+            )}
+
             <button className="primary-action" onClick={runJob} disabled={busy || !ffmpegReady}>
               {busy ? <Loader2 className="spin" size={20} /> : <Download size={20} />}
               {busy ? 'Working...' : actionLabel}
@@ -228,6 +288,10 @@ function App() {
                 <strong>{result.outputName}</strong>
                 <span>{result.sizeLabel}</span>
                 <code>{result.outputPath}</code>
+                <button className="open-folder" onClick={openResultFolder}>
+                  <ExternalLink size={17} />
+                  Show in folder
+                </button>
               </div>
             ) : (
               <div className="empty-result">

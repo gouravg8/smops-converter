@@ -14,6 +14,14 @@ export function Convert(arg1) {
   return window['go']['main']['App']['Convert'](arg1);
 }
 
+export function InstallFFmpeg() {
+  return window['go']['main']['App']['InstallFFmpeg']();
+}
+
+export function OpenInFolder(arg1) {
+  return window['go']['main']['App']['OpenInFolder'](arg1);
+}
+
 export function SelectFile() {
   return window['go']['main']['App']['SelectFile']();
 }

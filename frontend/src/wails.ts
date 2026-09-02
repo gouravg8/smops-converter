@@ -29,6 +29,8 @@ type GoBridge = {
     App: {
       SelectFile(): Promise<FileInfo | null>;
       SelectOutputDir(): Promise<string>;
+      OpenInFolder(path: string): Promise<void>;
+      InstallFFmpeg(): Promise<void>;
       Compress(req: ProcessRequest): Promise<ProcessResult>;
       Convert(req: ProcessRequest): Promise<ProcessResult>;
       CheckFFmpeg(): Promise<boolean>;

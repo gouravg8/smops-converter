@@ -8,6 +8,10 @@ export function Compress(arg1:main.ProcessRequest):Promise<main.ProcessResult>;
 
 export function Convert(arg1:main.ProcessRequest):Promise<main.ProcessResult>;
 
+export function InstallFFmpeg():Promise<void>;
+
+export function OpenInFolder(arg1:string):Promise<void>;
+
 export function SelectFile():Promise<main.FileInfo>;
 
 export function SelectOutputDir():Promise<string>;

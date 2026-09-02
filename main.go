@@ -15,13 +15,13 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:  "Nex Converter",
+		Title:  "Gonver",
 		Width:  1120,
 		Height: 760,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 245, G: 247, B: 250, A: 1},
+		BackgroundColour: &options.RGBA{R: 8, G: 8, B: 8, A: 1},
 		OnStartup:        app.startup,
 		Bind: []interface{}{
 			app,

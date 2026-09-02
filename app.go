@@ -9,9 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -102,6 +102,63 @@ func (a *App) Convert(req ProcessRequest) (*ProcessResult, error) {
 
 func (a *App) CheckFFmpeg() bool {
 	return hasCommand("ffmpeg") && hasCommand("ffprobe")
+}
+
+func (a *App) OpenInFolder(path string) error {
+	if path == "" {
+		return errors.New("no output file to open")
+	}
+	if _, err := os.Stat(path); err != nil {
+		return err
+	}
+
+	var cmd *exec.Cmd
+	switch goruntime.GOOS {
+	case "windows":
+		cmd = exec.Command("explorer.exe", "/select,", path)
+	case "darwin":
+		cmd = exec.Command("open", "-R", path)
+	default:
+		cmd = exec.Command("xdg-open", filepath.Dir(path))
+	}
+	return cmd.Start()
+}
+
+func (a *App) InstallFFmpeg() error {
+	if a.CheckFFmpeg() {
+		return nil
+	}
+
+	a.emitProgress(4, "Checking installer")
+	switch goruntime.GOOS {
+	case "windows":
+		if !hasCommand("winget") {
+			runtime.BrowserOpenURL(a.ctx, "https://ffmpeg.org/download.html")
+			return errors.New("winget is not available; opened the FFmpeg download page")
+		}
+		a.emitProgress(12, "Installing FFmpeg")
+		cmd := exec.Command(
+			"winget",
+			"install",
+			"--id", "Gyan.FFmpeg",
+			"-e",
+			"--accept-package-agreements",
+			"--accept-source-agreements",
+		)
+		hideCommandWindow(cmd)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			runtime.BrowserOpenURL(a.ctx, "https://ffmpeg.org/download.html")
+			return fmt.Errorf("FFmpeg install failed: %s", strings.TrimSpace(string(output)))
+		}
+		a.emitProgress(100, "FFmpeg installed")
+		return nil
+	case "darwin":
+		runtime.BrowserOpenURL(a.ctx, "https://ffmpeg.org/download.html#build-mac")
+	default:
+		runtime.BrowserOpenURL(a.ctx, "https://ffmpeg.org/download.html#build-linux")
+	}
+	return errors.New("opened FFmpeg install instructions for this OS")
 }
 
 func (a *App) process(req ProcessRequest) (*ProcessResult, error) {
@@ -320,10 +377,6 @@ func probeDuration(input string) (float64, error) {
 		return 0, err
 	}
 	return strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
-}
-
-func hideCommandWindow(cmd *exec.Cmd) {
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 }
 
 func imageCodecArgs(format string) []string {
