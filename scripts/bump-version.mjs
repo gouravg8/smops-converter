@@ -8,7 +8,7 @@ const root = path.resolve(import.meta.dirname ? path.dirname(new URL(import.meta
 const wailsPath = path.join(root, 'wails.json');
 const appPath = path.join(root, 'app.go');
 const frontendPkgPath = path.join(root, 'frontend', 'package.json');
-const manifestPath = path.join(root, 'updates', 'windows', 'latest.json');
+const manifestPaths = [path.join(root, 'updates', 'windows', 'latest.json'), path.join(root, 'updates', 'linux', 'latest.json')];
 
 function parseArgs() {
   const arg = process.argv[2];
@@ -68,25 +68,25 @@ try {
   console.warn(`  skip frontend/package.json: ${e.message}`);
 }
 
-// 4. updates/windows/latest.json (template — set version, keep URL placeholder for you to fill after upload)
-try {
-  if (fs.existsSync(manifestPath)) {
-    const mRaw = fs.readFileSync(manifestPath, 'utf8');
-    const m = JSON.parse(mRaw);
-    m.version = next;
-    m.latestVersion = next;
-    // do NOT overwrite url automatically — leave YOUR_ORG placeholder until you upload
-    // but if url contains old version string, hint to update
-    if (m.url && m.url.includes(current)) {
-      m.url = m.url.split(current).join(next);
-      console.log(`  updated manifest url version placeholder -> ${m.url} (verify!)`);
+// 4. updates/*/latest.json (templates — set version, keep URL placeholder for you to fill after upload)
+for (const manifestPath of manifestPaths) {
+  try {
+    if (fs.existsSync(manifestPath)) {
+      const mRaw = fs.readFileSync(manifestPath, 'utf8');
+      const m = JSON.parse(mRaw);
+      m.version = next;
+      m.latestVersion = next;
+      if (m.url && m.url.includes(current)) {
+        m.url = m.url.split(current).join(next);
+        console.log(`  updated manifest url placeholder ${path.relative(root, manifestPath)} -> ${m.url} (verify!)`);
+      }
+      m.publishedAt = new Date().toISOString().slice(0, 10);
+      fs.writeFileSync(manifestPath, JSON.stringify(m, null, 2) + '\n');
+      console.log(`  updated ${path.relative(root, manifestPath)} -> ${next}`);
     }
-    m.publishedAt = new Date().toISOString().slice(0, 10);
-    fs.writeFileSync(manifestPath, JSON.stringify(m, null, 2) + '\n');
-    console.log(`  updated updates/windows/latest.json -> ${next}`);
+  } catch (e) {
+    console.warn(`  skip ${manifestPath}: ${e.message}`);
   }
-} catch (e) {
-  console.warn(`  skip manifest: ${e.message}`);
 }
 
 console.log(`Done. Next: npm run build + wails build -platform windows/amd64 -nsis  (or: node scripts/build-windows.mjs --bump ${kind})`);

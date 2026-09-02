@@ -52,6 +52,42 @@ mv "build/bin/SmoothOps Converter-installer.exe" "SmoothOps-Converter-1.3.0-wind
    ```
    Host this at the URL in `app.go:UpdateManifestURL` (e.g. `https://raw.githubusercontent.com/gouravg8/smoothops-converter/main/updates/windows/latest.json` or `https://cdn.yourdomain.com/smoothops/windows/latest.json`). Must be HTTPS + CORS `Access-Control-Allow-Origin: *` if fetched from frontend fallback.
 
+### Linux builds
+
+```bash
+# bump versions (same script bumps both windows+linux manifests)
+node scripts/bump-version.mjs patch  # 0.0.1 -> 0.0.2 syncs app.go:wails.json:frontend/package.json:updates/{windows,linux}/latest.json
+
+# build Linux binary (Ubuntu 26.04)
+npm run build
+wails build -platform linux/amd64
+# → build/bin/SmoothOps Converter  (binary)
+# optional: make AppImage / .deb
+# AppImage (requires appimagetool):
+#   mkdir -p build/appimage && cp build/bin/"SmoothOps Converter" build/appimage/AppRun && ...
+# or .deb via nfpm: nfpm pkg --packager deb --target build/bin/SmoothOps-Converter-0.0.2-linux-amd64.deb
+
+# rename for release (linux)
+mv "build/bin/SmoothOps Converter" "build/bin/SmoothOps-Converter-0.0.2-linux-amd64"
+# or AppImage:
+mv SmoothOps-Converter-*.AppImage build/bin/SmoothOps-Converter-0.0.2-linux-amd64.AppImage
+```
+
+Host Linux artifact to same GitHub Release `v0.0.2` (attach `.AppImage` or `.deb` alongside the Windows `*.exe`). Update `updates/linux/latest.json` (auto-bumped by `bump-version.mjs`):
+
+```json
+{
+  "version": "0.0.2",
+  "latestVersion": "0.0.2",
+  "url": "https://github.com/gouravg8/smops-converter/releases/download/v0.0.2/SmoothOps-Converter-0.0.2-linux-amd64.AppImage",
+  "notes": "linux fixes",
+  "mandatory": false,
+  "publishedAt": "2026-09-03"
+}
+```
+
+Hosted at `https://raw.githubusercontent.com/gouravg8/smops-converter/main/updates/linux/latest.json`. Windows clients poll `updates/windows/latest.json`, Linux clients poll `updates/linux/latest.json` (extend `app.go:UpdateManifestURL` per `GOOS` if needed). Current updater (`app.go:180` `DownloadAndInstallUpdate`) on Linux uses `xdg-open` for the AppImage/deb — user then replaces binary manually; Windows uses NSIS installer auto-replace.
+
 5. **Client behavior** (`app.go:CheckForUpdate`, `frontend/src/main.tsx:82`):
    - On launch + every 6h + manual “Check again”, app `GET`s manifest, `compareVersions(latest, 1.2.0) > 0` → `update-available` event.
    - UI shows amber banner: “Update available: v1.3.0 (you have v1.2.0) — notes” [Update now] [Dismiss] (mandatory hides Dismiss).
