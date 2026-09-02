@@ -289,7 +289,7 @@ function App() {
               size="sm"
               onClick={installFFmpeg}
               disabled={installingFFmpeg}
-              className="h-7 border border-amber-500/30 bg-amber-500 text-black hover:bg-amber-400 hover:text-black text-xs font-bold cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.25)] animate-pulse hover:animate-none"
+              className="h-7 border border-primary/30 bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold cursor-pointer shadow-[0_0_12px_rgba(45,212,191,0.25)] animate-pulse hover:animate-none"
             >
               {installingFFmpeg ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
               {installingFFmpeg ? 'Installing...' : 'Install FFmpeg'}
@@ -300,8 +300,8 @@ function App() {
 
       {isDragOver && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] grid place-items-center pointer-events-none">
-          <div className="rounded-xl border border-white/15 bg-[#111111] px-8 py-6 text-center shadow-2xl">
-            <div className="mx-auto h-12 w-12 grid place-items-center rounded-full bg-white text-black mb-3">
+          <div className="rounded-xl border border-primary/20 bg-[#111111] px-8 py-6 text-center shadow-2xl">
+            <div className="mx-auto h-12 w-12 grid place-items-center rounded-full bg-primary text-primary-foreground mb-3">
               <Upload className="h-6 w-6" />
             </div>
             <div className="text-sm font-medium text-white">Drop file here</div>
@@ -314,10 +314,10 @@ function App() {
       <main className="flex-1 w-full px-4 md:px-6 py-6 overflow-auto bg-[#080808]">
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
           <TabsList className="bg-[#141414] border border-white/[0.06] p-1 h-9 mb-6 w-full sm:w-auto inline-flex rounded-lg">
-            <TabsTrigger value="compress" className="gap-2 rounded-md text-zinc-400 data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm font-medium cursor-pointer">
+            <TabsTrigger value="compress" className="gap-2 rounded-full text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer">
               <Archive className="h-3.5 w-3.5" /> Compress
             </TabsTrigger>
-            <TabsTrigger value="convert" className="gap-2 rounded-md text-zinc-400 data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm font-medium cursor-pointer">
+            <TabsTrigger value="convert" className="gap-2 rounded-full text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer">
               <Repeat2 className="h-3.5 w-3.5" /> Convert
             </TabsTrigger>
           </TabsList>
@@ -334,7 +334,7 @@ function App() {
                   onDrop={handleDrop}
                   className={`w-full flex items-center gap-4 rounded-xl border p-5 text-left transition-all cursor-pointer ${isDragOver ? 'border-white bg-white/[0.08] border-solid' : file ? 'border-white/15 bg-white/[0.04] hover:bg-white/[0.06]' : 'border-dashed border-white/10 bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/15'}`}
                 >
-                  <div className={`h-12 w-12 shrink-0 grid place-items-center rounded-lg border transition-colors ${isDragOver ? 'bg-white text-black border-white' : file ? 'bg-white text-black border-white' : 'bg-[#0a0a0a] text-zinc-400 border-white/10'}`}>{isDragOver ? <Download className="h-5 w-5 animate-bounce" /> : file ? selectedIcon : <Upload className="h-5 w-5" />}</div>
+                  <div className={`h-12 w-12 shrink-0 grid place-items-center rounded-full border transition-colors ${isDragOver ? 'bg-primary text-primary-foreground border-primary' : file ? 'bg-primary text-primary-foreground border-primary' : 'bg-primary/15 text-primary border-primary/20'}`}>{isDragOver ? <Download className="h-5 w-5 animate-bounce" /> : file ? selectedIcon : <Upload className="h-5 w-5" />}</div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[14px] font-medium text-zinc-100">{isDragOver ? 'Drop file here' : file ? file.name : 'Select image or video'}</div>
                     <div className={`truncate text-xs mt-1 font-normal ${isDragOver ? 'text-zinc-300' : 'text-zinc-500'}`}>{isDragOver ? 'Release to load image or video' : file ? `${file.kind.toUpperCase()} • ${file.extension.toUpperCase()} • ${file.sizeLabel}` : 'JPG, PNG, WEBP, MP4, MOV, MKV, AVI, WEBM • or drag & drop'}</div>
@@ -386,7 +386,7 @@ function App() {
                     <Label className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Output folder</Label>
                     <div className="flex gap-2">
                       <Input value={outputDir || 'Same as source file'} readOnly className="bg-[#0a0a0a] border-white/10 text-zinc-500" />
-                      <Button type="button" onClick={selectOutputDir} size="icon" className="shrink-0 bg-white text-black hover:bg-zinc-200 hover:text-black border border-white cursor-pointer">
+                      <Button type="button" onClick={selectOutputDir} size="icon" className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 border border-primary cursor-pointer rounded-full">
                         <FolderOpen className="h-4 w-4" />
                       </Button>
                     </div>
@@ -398,10 +398,10 @@ function App() {
                     <span className="text-zinc-500 uppercase">{progressStage}</span>
                     <span className="text-zinc-200 tabular-nums">{progress}%</span>
                   </div>
-                  <Progress value={progress} className="h-1.5 bg-zinc-900 [&>div]:bg-white" />
+                  <Progress value={progress} className="h-1.5 bg-zinc-900 [&>div]:bg-primary" />
                 </div>
 
-                <Button onClick={runJob} disabled={busy || !ffmpegReady} className="w-full h-[44px] text-[13px] font-semibold bg-white text-black hover:bg-zinc-200 hover:text-black shadow-[0_1px_0_rgba(255,255,255,0.1)_inset] disabled:opacity-40 cursor-pointer">
+                <Button onClick={runJob} disabled={busy || !ffmpegReady} className="w-full h-[44px] text-[13px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_1px_0_rgba(255,255,255,0.1)_inset] disabled:opacity-40 cursor-pointer rounded-full">
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : tab === 'compress' ? <Archive className="h-4 w-4" /> : <Download className="h-4 w-4" />}
                   {busy ? 'Working...' : actionLabel}
                 </Button>
@@ -419,7 +419,7 @@ function App() {
                 {result ? (
                   <div className="rounded-xl border border-white/10 bg-[#0a0a0a] p-4 space-y-3">
                     <div className="flex items-start gap-3">
-                      <div className="h-8 w-8 grid place-items-center rounded-full bg-white text-black shrink-0">
+                      <div className="h-8 w-8 grid place-items-center rounded-full bg-primary text-primary-foreground shrink-0">
                         <CheckCircle2 className="h-4 w-4" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -428,7 +428,7 @@ function App() {
                       </div>
                     </div>
                     <code className="block rounded-lg bg-[#141414] p-3 text-xs break-all text-zinc-400 border border-white/10 font-mono">{result.outputPath}</code>
-                    <Button onClick={openResultFolder} className="w-full bg-white text-black hover:bg-zinc-200 hover:text-black cursor-pointer">
+                    <Button onClick={openResultFolder} className="w-full bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer rounded-full">
                       <ExternalLink className="h-4 w-4" /> Show in folder
                     </Button>
                   </div>

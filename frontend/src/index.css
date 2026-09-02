@@ -40,7 +40,7 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* SmoothOps premium black theme - shades of black only, no blue fills */
+/* SmoothOps premium black theme - teal primary like Add User button */
 :root {
   --radius: 0.625rem;
   --background: oklch(0.09 0 0); /* #0a0a0a - deep black */
@@ -49,8 +49,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.14 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0); /* white - primary CTA */
-  --primary-foreground: oklch(0.09 0 0);
+  --primary: oklch(0.72 0.11 195); /* teal #3CB9C2 like Add User */
+  --primary-foreground: oklch(0.09 0 0); /* black text on teal */
   --secondary: oklch(0.18 0 0); /* #1c1c1c */
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.18 0 0);
@@ -60,20 +60,20 @@
   --destructive: oklch(0.55 0.22 27);
   --border: oklch(0.22 0 0); /* #2a2a2a */
   --input: oklch(0.22 0 0);
-  --ring: oklch(0.75 0 0);
-  --chart-1: oklch(0.65 0 0);
-  --chart-2: oklch(0.55 0 0);
+  --ring: oklch(0.72 0.11 195);
+  --chart-1: oklch(0.72 0.11 195);
+  --chart-2: oklch(0.65 0 0);
   --chart-3: oklch(0.45 0 0);
   --chart-4: oklch(0.75 0 0);
   --chart-5: oklch(0.85 0 0);
   --sidebar: oklch(0.09 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.72 0.11 195);
   --sidebar-primary-foreground: oklch(0.09 0 0);
   --sidebar-accent: oklch(0.18 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.22 0 0);
-  --sidebar-ring: oklch(0.75 0 0);
+  --sidebar-ring: oklch(0.72 0.11 195);
 }
 
 .dark {
@@ -83,7 +83,7 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.14 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
+  --primary: oklch(0.72 0.11 195);
   --primary-foreground: oklch(0.09 0 0);
   --secondary: oklch(0.18 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -94,7 +94,7 @@
   --destructive: oklch(0.55 0.22 27);
   --border: oklch(0.22 0 0);
   --input: oklch(0.22 0 0);
-  --ring: oklch(0.75 0 0);
+  --ring: oklch(0.72 0.11 195);
 }
 
 @layer base {
