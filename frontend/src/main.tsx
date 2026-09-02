@@ -12,8 +12,7 @@ import {
   Loader2,
   Repeat2,
   Trash2,
-  Upload,
-  Wrench
+  Upload
 } from 'lucide-react';
 import './index.css';
 import { appApi, FileInfo, ProcessResult } from './wails';
@@ -287,8 +286,13 @@ function App() {
             {ffmpegReady ? 'FFmpeg ready' : 'FFmpeg missing'}
           </div>
           {!ffmpegReady && (
-            <Button size="sm" onClick={installFFmpeg} disabled={installingFFmpeg} className="h-7 border border-white bg-white text-black hover:bg-zinc-200 hover:text-black text-xs font-semibold cursor-pointer shadow-sm">
-              {installingFFmpeg ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
+            <Button
+              size="sm"
+              onClick={installFFmpeg}
+              disabled={installingFFmpeg}
+              className="h-7 border border-amber-500/30 bg-amber-500 text-black hover:bg-amber-400 hover:text-black text-xs font-bold cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.25)] animate-pulse hover:animate-none"
+            >
+              {installingFFmpeg ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
               {installingFFmpeg ? 'Installing...' : 'Install FFmpeg'}
             </Button>
           )}
@@ -319,7 +323,7 @@ function App() {
             </TabsTrigger>
           </TabsList>
 
-          <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_0.65fr] gap-6 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] xl:grid-cols-[1.1fr_0.9fr] gap-6 items-start max-w-[1600px] mx-auto w-full">
             {/* Left: Tool panel - premium black card */}
             <Card className="border-white/[0.06] bg-[#111111] overflow-hidden shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset,0_1px_20px_rgba(0,0,0,0.4)]">
               <CardContent className="p-5 md:p-6 space-y-5">
@@ -347,10 +351,18 @@ function App() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {tab === 'compress' && (
                     <div className="space-y-2">
-                      <Label className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Max output size</Label>
-                      <div className="flex gap-2">
-                        <Input type="number" min="0.1" step="0.1" value={maxSizeMB} onChange={(e) => setMaxSizeMB(Number(e.target.value))} className="bg-[#0a0a0a] border-white/10 focus-visible:border-white/20 focus-visible:ring-white/10" />
-                        <span className="inline-flex h-9 items-center rounded-md border border-white/10 bg-zinc-900 px-3 text-xs font-medium text-zinc-400">MB</span>
+                      <Label htmlFor="max-size" className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Max output size</Label>
+                      <div className="relative flex items-center rounded-md border border-white/10 bg-[#0a0a0a] focus-within:border-white/20 focus-within:ring-1 focus-within:ring-white/10">
+                        <Input
+                          id="max-size"
+                          type="number"
+                          min="0.1"
+                          step="0.1"
+                          value={maxSizeMB}
+                          onChange={(e) => setMaxSizeMB(Number(e.target.value))}
+                          className="border-0 bg-transparent pr-14 focus-visible:ring-0 focus-visible:border-0 shadow-none"
+                        />
+                        <span className="absolute right-1 inline-flex h-7 items-center rounded-md bg-zinc-900 border border-white/10 px-2.5 text-xs font-semibold text-zinc-400 pointer-events-none">MB</span>
                       </div>
                     </div>
                   )}
