@@ -462,8 +462,17 @@ func (a *App) processVideo(input, output, format string, maxMB float64, enforceS
 		audioKbps = 64
 		videoKbps = totalKbps - audioKbps
 	}
-	if videoKbps < 80 {
-		return errors.New("target file size is too small for this video's duration")
+	// No hard limit: honor any user amount, clamp to ffmpeg-safe minimums
+	if totalKbps < 40 {
+		// extremely tiny target — still try with minimal bitrates
+		audioKbps = 32
+		videoKbps = 24
+	} else if videoKbps < 30 {
+		audioKbps = 32
+		videoKbps = totalKbps - audioKbps
+		if videoKbps < 24 {
+			videoKbps = 24
+		}
 	}
 
 	args := []string{"-y", "-i", input}
