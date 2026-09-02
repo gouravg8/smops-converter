@@ -78,6 +78,12 @@ h2 {
   font-size: 14px;
 }
 
+.status-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .status {
   display: inline-flex;
   align-items: center;
@@ -343,6 +349,16 @@ select:focus {
   background: #17140d;
   border: 1px solid #3b3320;
   color: #d9c58d;
+}
+
+.inline-action {
+  width: auto;
+  min-height: 36px;
+  margin: 0;
+  padding: 0 13px;
+  gap: 8px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .open-folder {

@@ -171,9 +171,17 @@ function App() {
             <p className="eyebrow">Desktop media utility</p>
             <h1>Gonver</h1>
           </div>
-          <div className={ffmpegReady ? 'status ready' : 'status missing'}>
-            <span />
-            {ffmpegReady ? 'FFmpeg ready' : 'FFmpeg missing'}
+          <div className="status-cluster">
+            <div className={ffmpegReady ? 'status ready' : 'status missing'}>
+              <span />
+              {ffmpegReady ? 'FFmpeg ready' : 'FFmpeg missing'}
+            </div>
+            {!ffmpegReady && (
+              <button className="secondary-action inline-action" onClick={installFFmpeg} disabled={installingFFmpeg}>
+                {installingFFmpeg ? <Loader2 className="spin" size={16} /> : <PackagePlus size={16} />}
+                {installingFFmpeg ? 'Installing FFmpeg...' : 'Install FFmpeg'}
+              </button>
+            )}
           </div>
         </header>
 
@@ -266,13 +274,6 @@ function App() {
                 <div className="progress-fill" style={{ width: `${progress}%` }} />
               </div>
             </div>
-
-            {!ffmpegReady && (
-              <button className="secondary-action" onClick={installFFmpeg} disabled={installingFFmpeg}>
-                {installingFFmpeg ? <Loader2 className="spin" size={18} /> : <PackagePlus size={18} />}
-                {installingFFmpeg ? 'Installing FFmpeg...' : 'Install FFmpeg'}
-              </button>
-            )}
 
             <button className="primary-action" onClick={runJob} disabled={busy || !ffmpegReady}>
               {busy ? <Loader2 className="spin" size={20} /> : <Download size={20} />}
