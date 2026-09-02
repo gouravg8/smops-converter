@@ -314,10 +314,10 @@ function App() {
       <main className="flex-1 w-full px-4 md:px-6 py-6 overflow-auto bg-[#080808]">
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
           <TabsList className="bg-[#141414] border border-white/[0.06] p-1 h-9 mb-6 w-full sm:w-auto inline-flex rounded-lg">
-            <TabsTrigger value="compress" className="gap-2 rounded-full text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer">
+            <TabsTrigger value="compress" className="gap-2 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer">
               <Archive className="h-3.5 w-3.5" /> Compress
             </TabsTrigger>
-            <TabsTrigger value="convert" className="gap-2 rounded-full text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer">
+            <TabsTrigger value="convert" className="gap-2 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer">
               <Repeat2 className="h-3.5 w-3.5" /> Convert
             </TabsTrigger>
           </TabsList>
@@ -386,7 +386,7 @@ function App() {
                     <Label className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Output folder</Label>
                     <div className="flex gap-2">
                       <Input value={outputDir || 'Same as source file'} readOnly className="bg-[#0a0a0a] border-white/10 text-zinc-500" />
-                      <Button type="button" onClick={selectOutputDir} size="icon" className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 border border-primary cursor-pointer rounded-full">
+                      <Button type="button" onClick={selectOutputDir} size="icon" className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 border border-primary cursor-pointer">
                         <FolderOpen className="h-4 w-4" />
                       </Button>
                     </div>
@@ -401,7 +401,7 @@ function App() {
                   <Progress value={progress} className="h-1.5 bg-zinc-900 [&>div]:bg-primary" />
                 </div>
 
-                <Button onClick={runJob} disabled={busy || !ffmpegReady} className="w-full h-[44px] text-[13px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_1px_0_rgba(255,255,255,0.1)_inset] disabled:opacity-40 cursor-pointer rounded-full">
+                <Button onClick={runJob} disabled={busy || !ffmpegReady} className="w-full h-[44px] text-[13px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_1px_0_rgba(255,255,255,0.1)_inset] disabled:opacity-40 cursor-pointer">
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : tab === 'compress' ? <Archive className="h-4 w-4" /> : <Download className="h-4 w-4" />}
                   {busy ? 'Working...' : actionLabel}
                 </Button>
@@ -428,7 +428,7 @@ function App() {
                       </div>
                     </div>
                     <code className="block rounded-lg bg-[#141414] p-3 text-xs break-all text-zinc-400 border border-white/10 font-mono">{result.outputPath}</code>
-                    <Button onClick={openResultFolder} className="w-full bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer rounded-full">
+                    <Button onClick={openResultFolder} className="w-full bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer">
                       <ExternalLink className="h-4 w-4" /> Show in folder
                     </Button>
                   </div>
