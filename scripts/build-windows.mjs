@@ -63,24 +63,49 @@ if (!fs.existsSync(wailsBin)) {
   console.error(`wails binary not found at ${wailsBin}. Set WAILS_BIN or install wails.`);
   process.exit(1);
 }
-sh(wailsBin, ['build', '-platform', 'windows/amd64', '-nsis']);
+let buildArgs = ['build', '-platform', 'windows/amd64', '-nsis'];
+// check if nsis (makensis) is available; if not, fallback to plain exe with warning
+let hasNsis = true;
+try {
+  const r = spawnSync('which', ['makensis'], { stdio: 'pipe' });
+  hasNsis = r.status === 0;
+} catch { hasNsis = false; }
+if (!hasNsis) {
+  console.warn('\n[warn] makensis (NSIS) not found — "wails build -nsis" will not create an installer.');
+  console.warn('       Install with: sudo apt install nsis  (then re-run)');
+  console.warn('       Falling back to plain Windows exe (portable) for now.\n');
+  buildArgs = ['build', '-platform', 'windows/amd64'];
+}
+sh(wailsBin, buildArgs);
 
-// 3. auto-rename installer with version
-// wails NSIS outputs: build/bin/SmoothOps Converter - installer.exe  (or similar)
-// we rename to SmoothOps-Converter-{version}-windows-amd64-installer.exe
+// 3. auto-rename with version (handles both installer and plain exe)
 const binDir = path.join(root, 'build', 'bin');
 const files = fs.readdirSync(binDir);
-const installer = files.find(f => f.toLowerCase().includes('installer') && f.endsWith('.exe'));
-if (!installer) {
-  console.warn(`No installer exe found in ${binDir}. Files: ${files.join(', ')}`);
+// prefer installer exe if exists, otherwise any SmoothOps*.exe not yet versioned
+let srcFile = files.find(f => f.toLowerCase().includes('installer') && f.endsWith('.exe'));
+if (!srcFile) {
+  // fallback: find the main exe (e.g. "SmoothOps Converter.exe")
+  const candidates = files.filter(f => f.endsWith('.exe') && !f.startsWith('SmoothOps-Converter-') && f.toLowerCase().includes('smoothops'));
+  if (candidates.length > 0) {
+    // pick newest by mtime
+    srcFile = candidates.sort((a,b) => fs.statSync(path.join(binDir,b)).mtimeMs - fs.statSync(path.join(binDir,a)).mtimeMs)[0];
+    console.warn(`No installer found, using portable exe: ${srcFile}`);
+  }
+}
+if (!srcFile) {
+  console.warn(`No exe found in ${binDir}. Files: ${files.join(', ')}`);
   process.exit(0);
 }
-const src = path.join(binDir, installer);
-const dstName = `SmoothOps-Converter-${version}-windows-amd64-installer.exe`;
+const isInstaller = srcFile.toLowerCase().includes('installer');
+const dstName = isInstaller
+  ? `SmoothOps-Converter-${version}-windows-amd64-installer.exe`
+  : `SmoothOps-Converter-${version}-windows-amd64.exe`;
+const src = path.join(binDir, srcFile);
 const dst = path.join(binDir, dstName);
 if (src !== dst) {
+  if (fs.existsSync(dst)) fs.unlinkSync(dst);
   fs.renameSync(src, dst);
-  console.log(`\nRenamed:\n  ${installer}\n  -> ${dstName}`);
+  console.log(`\nRenamed:\n  ${srcFile}\n  -> ${dstName}`);
 } else {
   console.log(`Already named ${dstName}`);
 }
