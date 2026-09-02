@@ -510,17 +510,14 @@ func (a *App) processVideoWithCtx(ctx context.Context, input, output, format str
 		audioKbps = 64
 		videoKbps = totalKbps - audioKbps
 	}
-	// No hard limit: honor any user amount, clamp to ffmpeg-safe minimums
-	if totalKbps < 40 {
-		// extremely tiny target — still try with minimal bitrates
-		audioKbps = 32
-		videoKbps = 24
-	} else if videoKbps < 30 {
-		audioKbps = 32
-		videoKbps = totalKbps - audioKbps
-		if videoKbps < 24 {
-			videoKbps = 24
+	if videoKbps < 80 {
+		minKbps := 80.0 + 64.0
+		minMB := (minKbps*1000*duration/0.92)/8/1024/1024
+		minMB = math.Ceil(minMB*10) / 10
+		if minMB < 0.5 {
+			minMB = 0.5
 		}
+		return fmt.Errorf("target %.1f MB too small for %.0fs video (needs ≥80 kbps video + 64 kbps audio). Try at least %.1f MB or use Convert without size limit", maxMB, duration, minMB)
 	}
 
 	args := []string{"-y", "-i", input}
