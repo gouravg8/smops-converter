@@ -3,9 +3,12 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,6 +20,21 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+const AppVersion = "1.2.0"
+
+// Change this to your hosted version.json (S3/GitHub Pages/Raw). Windows installer URL is per-platform.
+const UpdateManifestURL = "https://raw.githubusercontent.com/YOUR_ORG/smoothops-converter/main/updates/windows/latest.json"
+
+type UpdateInfo struct {
+	Available       bool   `json:"available"`
+	CurrentVersion  string `json:"currentVersion"`
+	LatestVersion   string `json:"latestVersion"`
+	URL             string `json:"url"`
+	Notes           string `json:"notes"`
+	Mandatory       bool   `json:"mandatory"`
+	PublishedAt     string `json:"publishedAt"`
+}
 
 type App struct {
 	ctx        context.Context
@@ -119,8 +137,192 @@ func (a *App) Convert(req ProcessRequest) (*ProcessResult, error) {
 	return a.process(req)
 }
 
+func (a *App) GetAppVersion() string { return AppVersion }
+
 func (a *App) CheckFFmpeg() bool {
 	return hasCommand("ffmpeg") && hasCommand("ffprobe")
+}
+
+func (a *App) CheckForUpdate() (*UpdateInfo, error) {
+	info, err := fetchRemoteVersion(UpdateManifestURL)
+	if err != nil {
+		return nil, err
+	}
+	current := strings.TrimSpace(AppVersion)
+	latest := strings.TrimSpace(info.LatestVersion)
+	available := latest != "" && compareVersions(latest, current) > 0
+	if !available {
+		return &UpdateInfo{Available: false, CurrentVersion: current, LatestVersion: latest}, nil
+	}
+	info.Available = true
+	info.CurrentVersion = current
+	// emit event so frontend can react even if not polling return value
+	runtime.EventsEmit(a.ctx, "update-available", info)
+	return info, nil
+}
+
+func (a *App) DownloadAndInstallUpdate(url string) error {
+	if strings.TrimSpace(url) == "" {
+		return errors.New("empty update url")
+	}
+	a.emitProgress(2, "Downloading update")
+	// download to temp
+	tmpDir := os.TempDir()
+	ext := ".exe"
+	if goruntime.GOOS != "windows" {
+		ext = ".bin"
+	}
+	tmpFile := filepath.Join(tmpDir, fmt.Sprintf("SmoothOps-Update-%d%s", time.Now().Unix(), ext))
+	out, err := os.Create(tmpFile)
+	if err != nil {
+		return err
+	}
+	resp, err := http.Get(url) // #nosec G107 - url is from trusted manifest
+	if err != nil {
+		_ = out.Close()
+		_ = os.Remove(tmpFile)
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		_ = out.Close()
+		_ = os.Remove(tmpFile)
+		return fmt.Errorf("download failed: %s", resp.Status)
+	}
+	// stream with progress if ContentLength known
+	var total int64 = resp.ContentLength
+	var written int64
+	buf := make([]byte, 32*1024)
+	for {
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			if _, werr := out.Write(buf[:n]); werr != nil {
+				_ = out.Close()
+				_ = os.Remove(tmpFile)
+				return werr
+			}
+			written += int64(n)
+			if total > 0 {
+				pct := int(float64(written) / float64(total) * 90) // 0-90 for download
+				a.emitProgress(5+pct, "Downloading update")
+			}
+		}
+		if readErr != nil {
+			if readErr == io.EOF {
+				break
+			}
+			_ = out.Close()
+			_ = os.Remove(tmpFile)
+			return readErr
+		}
+	}
+	_ = out.Close()
+	// make executable on unix
+	if goruntime.GOOS != "windows" {
+		_ = os.Chmod(tmpFile, 0755)
+	}
+	a.emitProgress(98, "Launching installer")
+	// launch installer detached
+	var cmd *exec.Cmd
+	switch goruntime.GOOS {
+	case "windows":
+		// NSIS installer: /S silent? we launch visible so user sees UAC
+		cmd = exec.Command("cmd", "/c", "start", "", tmpFile)
+	case "darwin":
+		cmd = exec.Command("open", tmpFile)
+	default:
+		// Linux: xdg-open the binary or AppImage; user will manually replace
+		cmd = exec.Command("xdg-open", tmpFile)
+	}
+	hideCommandWindow(cmd)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	a.emitProgress(100, "Update started — installer launched")
+	// optionally quit app so installer can replace binary on Windows
+	go func() {
+		time.Sleep(800 * time.Millisecond)
+		runtime.Quit(a.ctx)
+	}()
+	return nil
+}
+
+func fetchRemoteVersion(url string) (*UpdateInfo, error) {
+	client := &http.Client{Timeout: 8 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("update check failed: %s", resp.Status)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	var raw struct {
+		Version     string `json:"version"`
+		LatestVersion string `json:"latestVersion"`
+		URL         string `json:"url"`
+		Notes       string `json:"notes"`
+		Mandatory   bool   `json:"mandatory"`
+		PublishedAt string `json:"publishedAt"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, err
+	}
+	version := raw.Version
+	if version == "" {
+		version = raw.LatestVersion
+	}
+	return &UpdateInfo{
+		LatestVersion: strings.TrimSpace(version),
+		URL:           strings.TrimSpace(raw.URL),
+		Notes:         raw.Notes,
+		Mandatory:     raw.Mandatory,
+		PublishedAt:   raw.PublishedAt,
+	}, nil
+}
+
+func compareVersions(a, b string) int {
+	pa := parseVersionParts(a)
+	pb := parseVersionParts(b)
+	n := len(pa)
+	if len(pb) > n {
+		n = len(pb)
+	}
+	for i := 0; i < n; i++ {
+		var av, bv int
+		if i < len(pa) {
+			av = pa[i]
+		}
+		if i < len(pb) {
+			bv = pb[i]
+		}
+		if av < bv {
+			return -1
+		}
+		if av > bv {
+			return 1
+		}
+	}
+	return 0
+}
+
+func parseVersionParts(v string) []int {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	parts := strings.Split(v, ".")
+	out := make([]int, 0, len(parts))
+	for _, p := range parts {
+		// strip pre-release suffix like -beta
+		if idx := strings.Index(p, "-"); idx >= 0 {
+			p = p[:idx]
+		}
+		num, _ := strconv.Atoi(p)
+		out = append(out, num)
+	}
+	return out
 }
 
 func (a *App) OpenInFolder(path string) error {

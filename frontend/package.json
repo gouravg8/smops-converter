@@ -2,7 +2,14 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "version:patch": "node ../scripts/bump-version.mjs patch",
+    "version:minor": "node ../scripts/bump-version.mjs minor",
+    "version:major": "node ../scripts/bump-version.mjs major",
+    "release:patch": "node ../scripts/build-windows.mjs --bump patch",
+    "release:minor": "node ../scripts/build-windows.mjs --bump minor",
+    "release:major": "node ../scripts/build-windows.mjs --bump major",
+    "build:windows": "node ../scripts/build-windows.mjs --no-bump"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.15",
@@ -23,5 +30,6 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "tailwindcss": "^4.3.3"
-  }
+  },
+  "version": "1.2.0"
 }

@@ -24,6 +24,16 @@ export type ProcessResult = {
   message: string;
 };
 
+export type UpdateInfo = {
+  available: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  url: string;
+  notes: string;
+  mandatory: boolean;
+  publishedAt: string;
+};
+
 type GoBridge = {
   main: {
     App: {
@@ -34,6 +44,11 @@ type GoBridge = {
       Compress(req: ProcessRequest): Promise<ProcessResult>;
       Convert(req: ProcessRequest): Promise<ProcessResult>;
       CheckFFmpeg(): Promise<boolean>;
+      GetAppVersion(): Promise<string>;
+      CheckForUpdate(): Promise<UpdateInfo>;
+      DownloadAndInstallUpdate(url: string): Promise<void>;
+      Cancel(): Promise<void>;
+      GetFileInfo(path: string): Promise<FileInfo>;
     };
   };
 };

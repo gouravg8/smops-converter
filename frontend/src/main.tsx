@@ -15,7 +15,7 @@ import {
   X
 } from 'lucide-react';
 import './index.css';
-import { appApi, FileInfo, ProcessResult } from './wails';
+import { appApi, FileInfo, ProcessResult, UpdateInfo } from './wails';
 import { EventsOff, EventsOn } from '../wailsjs/runtime/runtime';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -62,6 +62,10 @@ function App() {
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [error, setError] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [downloadingUpdate, setDownloadingUpdate] = useState(false);
+  const [appVersion, setAppVersion] = useState('1.2.0');
 
   const formats = useMemo(() => {
     if (file?.kind === 'video') return videoFormats;
@@ -70,6 +74,22 @@ function App() {
 
   useEffect(() => {
     appApi().CheckFFmpeg().then(setFfmpegReady).catch(() => setFfmpegReady(false));
+  }, []);
+
+  // Auto-update check: fetch version.json on launch + every 6h, plus push via Go event
+  useEffect(() => {
+    appApi().GetAppVersion().then(setAppVersion).catch(() => {});
+    const check = () => {
+      setCheckingUpdate(true);
+      (appApi().CheckForUpdate() as Promise<UpdateInfo>).then((info) => {
+        if (info?.available) setUpdateInfo(info);
+      }).catch(() => {}).finally(() => setCheckingUpdate(false));
+    };
+    check();
+    const onUpdate = (info: UpdateInfo) => setUpdateInfo(info);
+    EventsOn('update-available', onUpdate);
+    const id = window.setInterval(check, 6 * 60 * 60 * 1000);
+    return () => { EventsOff('update-available'); window.clearInterval(id); };
   }, []);
 
   useEffect(() => {
@@ -303,6 +323,23 @@ function App() {
     }
   }
 
+  async function handleUpdate() {
+    if (!updateInfo?.url) return;
+    setDownloadingUpdate(true);
+    setError('');
+    setProgress(0);
+    setProgressStage('Downloading update');
+    try {
+      await appApi().DownloadAndInstallUpdate(updateInfo.url);
+      // installer launched — will quit shortly via Go
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setProgress(0);
+      setProgressStage('Ready');
+      setDownloadingUpdate(false);
+    }
+  }
+
   async function openResultFolder() {
     if (!result) return;
     setError('');
@@ -332,7 +369,7 @@ function App() {
             <span className="text-[15px] font-[700] tracking-[0.14em] text-zinc-100">SMOOTHOPS</span>
             <span className="text-[15px] font-[300] tracking-wide text-zinc-400">Converter</span>
           </div>
-          <span className="hidden md:inline-flex ml-4 text-[11px] font-medium tracking-widest text-zinc-500 border-l border-white/10 pl-4">v1.2</span>
+          <span className="hidden md:inline-flex ml-4 text-[11px] font-medium tracking-widest text-zinc-500 border-l border-white/10 pl-4">v{appVersion}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${ffmpegReady ? 'bg-zinc-900 border-white/10 text-zinc-300' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
@@ -352,6 +389,27 @@ function App() {
           )}
         </div>
       </header>
+
+      {/* Update banner — shown when newer version is on server; replaces old build on “Update now” */}
+      {updateInfo?.available && (
+        <div className="mx-4 md:mx-6 mt-4 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2 text-amber-200 text-sm font-medium flex-1 min-w-0">
+            <Download className="h-4 w-4 shrink-0" />
+            <span className="truncate">Update available: v{updateInfo.latestVersion} (you have v{updateInfo.currentVersion}){updateInfo.notes ? ` — ${updateInfo.notes}` : ''}</span>
+            {checkingUpdate && <Loader2 className="h-3.5 w-3.5 animate-spin opacity-60" />}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button size="sm" onClick={handleUpdate} disabled={downloadingUpdate} className="h-8 bg-amber-500 text-black hover:bg-amber-400 font-semibold cursor-pointer">
+              {downloadingUpdate ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              {downloadingUpdate ? 'Downloading…' : 'Update now'}
+            </Button>
+            {!updateInfo.mandatory && (
+              <Button size="sm" variant="ghost" onClick={() => setUpdateInfo(null)} className="h-8 text-amber-200/70 hover:text-amber-100 hover:bg-amber-500/10 cursor-pointer"><X className="h-3.5 w-3.5" /> Dismiss</Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => { setCheckingUpdate(true); (appApi().CheckForUpdate() as Promise<UpdateInfo>).then(i=>{ if(i?.available) setUpdateInfo(i)}).finally(()=>setCheckingUpdate(false)); }} className="h-8 text-zinc-400 hover:text-zinc-100 cursor-pointer">Check again</Button>
+          </div>
+        </div>
+      )}
 
       {isDragOver && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] grid place-items-center pointer-events-none">
