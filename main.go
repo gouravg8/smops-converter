@@ -6,10 +6,15 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
+
+//go:embed build/appicon.png
+var appIcon []byte
 
 func main() {
 	app := NewApp()
@@ -34,6 +39,17 @@ func main() {
 		OnStartup:        app.startup,
 		Bind: []interface{}{
 			app,
+		},
+		Linux: &linux.Options{
+			Icon:        appIcon,
+			ProgramName: "SmoothOps Converter",
+		},
+		Mac: &mac.Options{
+			About: &mac.AboutInfo{
+				Title:   "SmoothOps Converter",
+				Message: "© 2026 NEXPRO AI LLP. All Rights Reserved.\nSmoothOps media converter — compress and convert images and videos",
+				Icon:    appIcon,
+			},
 		},
 	})
 	if err != nil {

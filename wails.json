@@ -9,5 +9,12 @@
   "author": {
     "name": "Gourav Soni",
     "email": ""
+  },
+  "info": {
+    "companyName": "NEXPRO AI LLP",
+    "productName": "SmoothOps Converter",
+    "productVersion": "1.2.0",
+    "copyright": "Copyright © 2026 NEXPRO AI LLP. All Rights Reserved.",
+    "comments": "SmoothOps media converter — compress and convert images and videos"
   }
 }
