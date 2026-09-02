@@ -147,33 +147,178 @@ func (a *App) InstallFFmpeg() error {
 	a.emitProgress(4, "Checking installer")
 	switch goruntime.GOOS {
 	case "windows":
-		if !hasCommand("winget") {
-			runtime.BrowserOpenURL(a.ctx, "https://ffmpeg.org/download.html")
-			return errors.New("winget is not available; opened the FFmpeg download page")
-		}
-		a.emitProgress(12, "Installing FFmpeg")
-		cmd := exec.Command(
-			"winget",
-			"install",
-			"--id", "Gyan.FFmpeg",
-			"-e",
-			"--accept-package-agreements",
-			"--accept-source-agreements",
-		)
+		return a.installWindowsFFmpeg()
+	case "darwin":
+		return a.installMacFFmpeg()
+	default:
+		return a.installLinuxFFmpeg()
+	}
+}
+
+func (a *App) installWindowsFFmpeg() error {
+	// 1) winget (preferred)
+	if hasCommand("winget") {
+		a.emitProgress(12, "Installing FFmpeg via winget")
+		cmd := exec.Command("winget", "install", "--id", "Gyan.FFmpeg", "-e", "--accept-package-agreements", "--accept-source-agreements")
 		hideCommandWindow(cmd)
 		output, err := cmd.CombinedOutput()
+		if err == nil {
+			a.emitProgress(100, "FFmpeg installed")
+			if a.CheckFFmpeg() {
+				return nil
+			}
+		} else {
+			// winget failed, fall through to wget/powershell
+			a.emitProgress(20, fmt.Sprintf("winget failed, trying PowerShell: %s", strings.TrimSpace(string(output))))
+		}
+	}
+	// 2) PowerShell wget (Invoke-WebRequest) fallback — download Gyan essentials build
+	if hasCommand("powershell") || hasCommand("pwsh") {
+		pwsh := "powershell"
+		if hasCommand("pwsh") {
+			pwsh = "pwsh"
+		}
+		a.emitProgress(30, "Downloading FFmpeg via PowerShell wget")
+		// Use BtbN or Gyan release via direct URL; use BtbN latest as example
+		script := `$ProgressPreference='SilentlyContinue'; $url='https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip'; $zip="$env:TEMP\\ffmpeg.zip"; $dest="$env:LOCALAPPDATA\\ffmpeg"; try { Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing; Expand-Archive -Path $zip -DestinationPath $dest -Force; $bin=(Get-ChildItem -Path $dest -Recurse -Filter ffmpeg.exe | Select-Object -First 1).DirectoryName; $old=[Environment]::GetEnvironmentVariable('Path','User'); if($bin -and $old -notlike "*$bin*"){ [Environment]::SetEnvironmentVariable('Path', \"$old;$bin\", 'User'); $env:Path += \";$bin\" }; exit 0 } catch { Write-Error $_.Exception.Message; exit 1 }`
+		cmd := exec.Command(pwsh, "-NoProfile", "-Command", script)
+		hideCommandWindow(cmd)
+		output, err := cmd.CombinedOutput()
+		if err == nil && a.CheckFFmpeg() {
+			a.emitProgress(100, "FFmpeg installed via PowerShell")
+			return nil
+		}
 		if err != nil {
 			runtime.BrowserOpenURL(a.ctx, "https://ffmpeg.org/download.html")
-			return fmt.Errorf("FFmpeg install failed: %s", strings.TrimSpace(string(output)))
+			return fmt.Errorf("PowerShell install failed: %s", strings.TrimSpace(string(output)))
 		}
-		a.emitProgress(100, "FFmpeg installed")
-		return nil
-	case "darwin":
-		runtime.BrowserOpenURL(a.ctx, "https://ffmpeg.org/download.html#build-mac")
+	}
+	runtime.BrowserOpenURL(a.ctx, "https://ffmpeg.org/download.html")
+	return errors.New("winget/powershell not available; opened FFmpeg download page")
+}
+
+func (a *App) installMacFFmpeg() error {
+	// brew (preferred on macOS)
+	if hasCommand("brew") {
+		a.emitProgress(12, "Installing FFmpeg via brew")
+		cmd := exec.Command("brew", "install", "ffmpeg")
+		hideCommandWindow(cmd)
+		output, err := cmd.CombinedOutput()
+		if err == nil && a.CheckFFmpeg() {
+			a.emitProgress(100, "FFmpeg installed via brew")
+			return nil
+		}
+		if err != nil {
+			// keep trying fallback
+			a.emitProgress(30, fmt.Sprintf("brew failed: %s", strings.TrimSpace(string(output))))
+		}
+	}
+	if hasCommand("port") {
+		a.emitProgress(12, "Installing FFmpeg via MacPorts")
+		cmd := exec.Command("port", "install", "ffmpeg")
+		hideCommandWindow(cmd)
+		if out, err := cmd.CombinedOutput(); err == nil && a.CheckFFmpeg() {
+			a.emitProgress(100, "FFmpeg installed via MacPorts")
+			return nil
+		} else {
+			a.emitProgress(30, fmt.Sprintf("port failed: %s", strings.TrimSpace(string(out))))
+		}
+	}
+	runtime.BrowserOpenURL(a.ctx, "https://ffmpeg.org/download.html#build-mac")
+	if !hasCommand("brew") {
+		return errors.New("brew not found; opened FFmpeg install page — install with: /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\" && brew install ffmpeg")
+	}
+	return errors.New("brew install failed; opened FFmpeg download page")
+}
+
+func (a *App) installLinuxFFmpeg() error {
+	// Detect package manager: apt (Ubuntu/Debian), dnf (Fedora), yum, pacman (Arch), zypper (openSUSE)
+	var pm string
+	var updateArgs, installArgs []string
+	switch {
+	case hasCommand("apt-get"):
+		pm = "apt-get"
+		updateArgs = []string{"update"}
+		installArgs = []string{"install", "-y", "ffmpeg"}
+	case hasCommand("apt"):
+		pm = "apt"
+		updateArgs = []string{"update"}
+		installArgs = []string{"install", "-y", "ffmpeg"}
+	case hasCommand("dnf"):
+		pm = "dnf"
+		installArgs = []string{"install", "-y", "ffmpeg"}
+	case hasCommand("yum"):
+		pm = "yum"
+		installArgs = []string{"install", "-y", "ffmpeg"}
+	case hasCommand("pacman"):
+		pm = "pacman"
+		updateArgs = []string{"-Sy"}
+		installArgs = []string{"-S", "--noconfirm", "ffmpeg"}
+	case hasCommand("zypper"):
+		pm = "zypper"
+		installArgs = []string{"install", "-y", "ffmpeg"}
 	default:
 		runtime.BrowserOpenURL(a.ctx, "https://ffmpeg.org/download.html#build-linux")
+		return errors.New("no supported package manager found (apt/dnf/pacman/zypper); opened FFmpeg download page")
 	}
-	return errors.New("opened FFmpeg install instructions for this OS")
+
+	// Try privileged execution: pkexec (GUI) -> sudo -> direct
+	privPrefixes := [][]string{}
+	if hasCommand("pkexec") {
+		privPrefixes = append(privPrefixes, []string{"pkexec"})
+	}
+	if hasCommand("sudo") {
+		privPrefixes = append(privPrefixes, []string{"sudo", "-n"})
+		privPrefixes = append(privPrefixes, []string{"sudo"})
+	}
+	privPrefixes = append(privPrefixes, []string{}) // try without prefix as last resort
+
+	tryRun := func(args []string) (string, error) {
+		for _, prefix := range privPrefixes {
+			full := append([]string{}, prefix...)
+			full = append(full, pm)
+			full = append(full, args...)
+			cmd := exec.Command(full[0], full[1:]...)
+			hideCommandWindow(cmd)
+			out, err := cmd.CombinedOutput()
+			if err == nil {
+				return string(out), nil
+			}
+			// if permission denied without prompt, try next prefix
+			msg := strings.ToLower(string(out))
+			if strings.Contains(msg, "no askpass") || strings.Contains(msg, "a password is required") || strings.Contains(msg, "not allowed") {
+				continue
+			}
+			// for pkexec cancelled, stop
+			if strings.Contains(msg, "dismissed") || strings.Contains(msg, "cancelled") {
+				return string(out), err
+			}
+			// otherwise return error for this manager
+			return string(out), err
+		}
+		return "", errors.New("no privilege escalation succeeded")
+	}
+
+	if len(updateArgs) > 0 {
+		a.emitProgress(12, fmt.Sprintf("Updating packages via %s", pm))
+		if out, err := tryRun(updateArgs); err != nil {
+			// non-fatal for some managers, continue to install
+			a.emitProgress(20, fmt.Sprintf("%s update warning: %s", pm, strings.TrimSpace(out)))
+		}
+	}
+	a.emitProgress(40, fmt.Sprintf("Installing FFmpeg via %s", pm))
+	out, err := tryRun(installArgs)
+	if err != nil {
+		runtime.BrowserOpenURL(a.ctx, "https://ffmpeg.org/download.html#build-linux")
+		return fmt.Errorf("%s install failed: %s", pm, strings.TrimSpace(out))
+	}
+	a.emitProgress(80, "Verifying FFmpeg")
+	if !a.CheckFFmpeg() {
+		runtime.BrowserOpenURL(a.ctx, "https://ffmpeg.org/download.html#build-linux")
+		return fmt.Errorf("%s reported success but ffmpeg not found in PATH", pm)
+	}
+	a.emitProgress(100, "FFmpeg installed")
+	return nil
 }
 
 func (a *App) process(req ProcessRequest) (*ProcessResult, error) {
