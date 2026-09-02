@@ -11,7 +11,8 @@ import {
   Loader2,
   Repeat2,
   Trash2,
-  Upload
+  Upload,
+  X
 } from 'lucide-react';
 import './index.css';
 import { appApi, FileInfo, ProcessResult } from './wails';
@@ -61,9 +62,14 @@ function App() {
     return () => EventsOff('job-progress');
   }, []);
 
-  // Wails drag & drop via Go: file-dropped + error
+  // Wails drag & drop via Go: file-dropped + error — blocked when busy
   useEffect(() => {
     const onDropped = (info: FileInfo) => {
+      if (busy) {
+        setError('A process is running — cancel it first to drop a new file');
+        setIsDragOver(false);
+        return;
+      }
       setError('');
       setResult(null);
       setFile(info);
@@ -81,6 +87,11 @@ function App() {
     EventsOn('file-dropped-error', onError);
     // also listen to raw wails:file-drop for safety (x,y,paths)
     EventsOn('wails:file-drop', (_x: number, _y: number, paths: string[]) => {
+      if (busy) {
+        setError('A process is running — cancel it first to drop a new file');
+        setIsDragOver(false);
+        return;
+      }
       if (paths && paths.length > 0) {
         appApi
           .GetFileInfo(paths[0])
@@ -93,7 +104,7 @@ function App() {
       EventsOff('file-dropped-error');
       EventsOff('wails:file-drop');
     };
-  }, [tab]);
+  }, [tab, busy]);
 
   // Prevent browser default drag handling that causes ghost glitch
   useEffect(() => {
@@ -121,6 +132,10 @@ function App() {
   }, [tab]);
 
   function handleDragOver(e: React.DragEvent) {
+    if (busy) {
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
@@ -138,6 +153,10 @@ function App() {
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
+    if (busy) {
+      setError('A process is running — cancel it first to drop a new file');
+      return;
+    }
     // Try HTML5 files first (for browser dev)
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
@@ -166,6 +185,10 @@ function App() {
   }
 
   async function selectFile() {
+    if (busy) {
+      setError('A process is running — cancel it first to select a new file');
+      return;
+    }
     setError('');
     setResult(null);
     const selected = await appApi().SelectFile();
@@ -218,12 +241,26 @@ function App() {
       setProgress(100);
       setProgressStage('Complete');
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setProgress(0);
-      setProgressStage('Ready');
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.toLowerCase().includes('cancel')) {
+        setError('');
+        setProgress(0);
+        setProgressStage('Cancelled');
+      } else {
+        setError(msg);
+        setProgress(0);
+        setProgressStage('Ready');
+      }
     } finally {
       setBusy(false);
     }
+  }
+
+  async function cancelJob() {
+    try {
+      await appApi().Cancel();
+    } catch {}
+    setProgressStage('Cancelling...');
   }
 
   async function installFFmpeg() {
@@ -314,10 +351,10 @@ function App() {
       <main className="flex-1 w-full px-4 md:px-6 py-6 overflow-auto bg-[#080808]">
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
           <TabsList className="bg-[#141414] border border-white/[0.06] p-1 h-9 mb-6 w-full sm:w-auto inline-flex rounded-lg">
-            <TabsTrigger value="compress" className="gap-2 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer">
+            <TabsTrigger value="compress" disabled={busy} className="gap-2 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer disabled:opacity-40">
               <Archive className="h-3.5 w-3.5" /> Compress
             </TabsTrigger>
-            <TabsTrigger value="convert" className="gap-2 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer">
+            <TabsTrigger value="convert" disabled={busy} className="gap-2 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer disabled:opacity-40">
               <Repeat2 className="h-3.5 w-3.5" /> Convert
             </TabsTrigger>
           </TabsList>
@@ -328,11 +365,12 @@ function App() {
               <CardContent className="p-5 md:p-6 space-y-5">
                 <button
                   onClick={selectFile}
+                  disabled={busy}
                   onDragOver={handleDragOver}
                   onDragEnter={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  className={`w-full flex items-center gap-4 rounded-xl border p-5 text-left transition-all cursor-pointer ${isDragOver ? 'border-white bg-white/[0.08] border-solid' : file ? 'border-white/15 bg-white/[0.04] hover:bg-white/[0.06]' : 'border-dashed border-white/10 bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/15'}`}
+                  className={`w-full flex items-center gap-4 rounded-xl border p-5 text-left transition-all ${busy ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${isDragOver ? 'border-white bg-white/[0.08] border-solid' : file ? 'border-white/15 bg-white/[0.04] hover:bg-white/[0.06]' : 'border-dashed border-white/10 bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/15'}`}
                 >
                   <div className={`h-12 w-12 shrink-0 grid place-items-center rounded-full border transition-colors ${isDragOver ? 'bg-primary text-primary-foreground border-primary' : file ? 'bg-primary text-primary-foreground border-primary' : 'bg-primary/15 text-primary border-primary/20'}`}>{isDragOver ? <Download className="h-5 w-5 animate-bounce" /> : file ? selectedIcon : <Upload className="h-5 w-5" />}</div>
                   <div className="min-w-0 flex-1">
@@ -342,7 +380,7 @@ function App() {
                 </button>
 
                 {file && (
-                  <Button variant="ghost" size="sm" onClick={removeCurrentFile} className="h-7 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 -mt-2 text-xs cursor-pointer">
+                  <Button variant="ghost" size="sm" onClick={removeCurrentFile} disabled={busy} className="h-7 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 -mt-2 text-xs cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
                     <Trash2 className="h-3.5 w-3.5" /> Remove file
                   </Button>
                 )}
@@ -359,7 +397,8 @@ function App() {
                           step="0.1"
                           value={maxSizeMB}
                           onChange={(e) => setMaxSizeMB(Number(e.target.value))}
-                          className="border-0 bg-transparent pr-14 focus-visible:ring-0 focus-visible:border-0 shadow-none"
+                          disabled={busy}
+                          className="border-0 bg-transparent pr-14 focus-visible:ring-0 focus-visible:border-0 shadow-none disabled:opacity-40"
                         />
                         <span className="absolute right-1 inline-flex h-7 items-center rounded-md bg-zinc-900 border border-white/10 px-2.5 text-xs font-semibold text-zinc-400 pointer-events-none">MB</span>
                       </div>
@@ -367,8 +406,8 @@ function App() {
                   )}
                   <div className="space-y-2">
                     <Label className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Output format</Label>
-                    <Select value={format} onValueChange={setFormat}>
-                      <SelectTrigger className="bg-[#0a0a0a] border-white/10"><SelectValue /></SelectTrigger>
+                    <Select value={format} onValueChange={setFormat} disabled={busy}>
+                      <SelectTrigger className="bg-[#0a0a0a] border-white/10 disabled:opacity-40"><SelectValue /></SelectTrigger>
                       <SelectContent className="bg-[#141414] border-white/10">
                         {formats.map((item) => (
                           <SelectItem key={item} value={item}>{item.toUpperCase()}</SelectItem>
@@ -379,14 +418,14 @@ function App() {
 
                   <div className="space-y-2 md:col-span-2">
                     <Label className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Output name</Label>
-                    <Input value={outputName} onChange={(e) => setOutputName(e.target.value)} placeholder="Leave blank to auto-name" className="bg-[#0a0a0a] border-white/10 focus-visible:border-white/20 placeholder:text-zinc-600" />
+                    <Input value={outputName} onChange={(e) => setOutputName(e.target.value)} placeholder="Leave blank to auto-name" disabled={busy} className="bg-[#0a0a0a] border-white/10 focus-visible:border-white/20 placeholder:text-zinc-600 disabled:opacity-40" />
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
                     <Label className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Output folder</Label>
                     <div className="flex gap-2">
-                      <Input value={outputDir || 'Same as source file'} readOnly className="bg-[#0a0a0a] border-white/10 text-zinc-500" />
-                      <Button type="button" onClick={selectOutputDir} size="icon" className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 border border-primary cursor-pointer">
+                      <Input value={outputDir || 'Same as source file'} readOnly disabled={busy} className="bg-[#0a0a0a] border-white/10 text-zinc-500 disabled:opacity-40" />
+                      <Button type="button" onClick={selectOutputDir} disabled={busy} size="icon" className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 border border-primary cursor-pointer disabled:opacity-40">
                         <FolderOpen className="h-4 w-4" />
                       </Button>
                     </div>
@@ -401,10 +440,21 @@ function App() {
                   <Progress value={progress} className="h-1.5 bg-zinc-900 [&>div]:bg-primary" />
                 </div>
 
-                <Button onClick={runJob} disabled={busy || !ffmpegReady} className="w-full h-[44px] text-[13px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_1px_0_rgba(255,255,255,0.1)_inset] disabled:opacity-40 cursor-pointer">
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : tab === 'compress' ? <Archive className="h-4 w-4" /> : <Download className="h-4 w-4" />}
-                  {busy ? 'Working...' : actionLabel}
-                </Button>
+                {busy ? (
+                  <div className="grid grid-cols-[1fr_auto] gap-2">
+                    <Button disabled className="h-[44px] text-[13px] font-semibold bg-primary/80 text-primary-foreground cursor-not-allowed">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Working...
+                    </Button>
+                    <Button onClick={cancelJob} variant="outline" className="h-[44px] px-6 border-white/15 bg-transparent hover:bg-white/10 text-zinc-200 cursor-pointer">
+                      <X className="h-4 w-4" /> Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <Button onClick={runJob} disabled={!ffmpegReady} className="w-full h-[44px] text-[13px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_1px_0_rgba(255,255,255,0.1)_inset] disabled:opacity-40 cursor-pointer">
+                    {tab === 'compress' ? <Archive className="h-4 w-4" /> : <Download className="h-4 w-4" />}
+                    {actionLabel}
+                  </Button>
+                )}
 
                 {error && <div className="rounded-lg bg-red-500/[0.06] border border-red-500/20 p-3 text-sm font-medium text-red-400">{error}</div>}
               </CardContent>

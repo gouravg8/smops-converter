@@ -12,13 +12,17 @@ import (
 	goruntime "runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type App struct {
-	ctx context.Context
+	ctx        context.Context
+	mu         sync.Mutex
+	currentCmd *exec.Cmd
+	cancelFunc context.CancelFunc
 }
 
 type FileInfo struct {
@@ -321,6 +325,18 @@ func (a *App) installLinuxFFmpeg() error {
 	return nil
 }
 
+func (a *App) Cancel() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.cancelFunc != nil {
+		a.cancelFunc()
+	}
+	if a.currentCmd != nil && a.currentCmd.Process != nil {
+		_ = a.currentCmd.Process.Kill()
+	}
+	return nil
+}
+
 func (a *App) process(req ProcessRequest) (*ProcessResult, error) {
 	if req.InputPath == "" {
 		return nil, errors.New("select a file first")
@@ -348,14 +364,33 @@ func (a *App) process(req ProcessRequest) (*ProcessResult, error) {
 	outPath := uniqueOutputPath(req.OutputDir, baseName, format)
 	a.emitProgress(4, "Preparing output")
 
+	// cancellable context for this job
+	jobCtx, cancel := context.WithCancel(a.ctx)
+	a.mu.Lock()
+	a.cancelFunc = cancel
+	a.mu.Unlock()
+	defer func() {
+		a.mu.Lock()
+		a.cancelFunc = nil
+		a.currentCmd = nil
+		a.mu.Unlock()
+		cancel()
+	}()
+
 	if info.Kind == "image" {
-		err = a.processImage(req.InputPath, outPath, format, req.MaxSizeMB, req.Mode == "compress")
+		err = a.processImageWithCtx(jobCtx, req.InputPath, outPath, format, req.MaxSizeMB, req.Mode == "compress")
 	} else if info.Kind == "video" {
-		err = a.processVideo(req.InputPath, outPath, format, req.MaxSizeMB, req.Mode == "compress")
+		err = a.processVideoWithCtx(jobCtx, req.InputPath, outPath, format, req.MaxSizeMB, req.Mode == "compress")
 	} else {
 		err = errors.New("unsupported file type")
 	}
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			_ = os.Remove(outPath)
+			return nil, errors.New("cancelled")
+		}
+		// for any other error, keep partial for debugging but stat will fail — remove broken file
+		// try to leave file if exists; don't delete on genuine ffmpeg error
 		return nil, err
 	}
 
@@ -399,13 +434,17 @@ func inspectFile(path string) (*FileInfo, error) {
 }
 
 func (a *App) processImage(input, output, format string, maxMB float64, enforceSize bool) error {
+	return a.processImageWithCtx(context.Background(), input, output, format, maxMB, enforceSize)
+}
+
+func (a *App) processImageWithCtx(ctx context.Context, input, output, format string, maxMB float64, enforceSize bool) error {
 	targetBytes := int64(maxMB * 1024 * 1024)
 	if !enforceSize {
 		a.emitProgress(20, "Converting image")
 		args := []string{"-y", "-i", input, "-frames:v", "1"}
 		args = append(args, imageCodecArgs(format)...)
 		args = append(args, output)
-		if err := runFFmpeg(args...); err != nil {
+		if err := a.runFFmpegWithCtx(ctx, args...); err != nil {
 			return err
 		}
 		a.emitProgress(100, "Complete")
@@ -418,6 +457,11 @@ func (a *App) processImage(input, output, format string, maxMB float64, enforceS
 	attempt := 0
 	for _, scale := range scales {
 		for _, q := range qualities {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
 			attempt++
 			a.emitProgress(8+int(float64(attempt)/float64(totalAttempts)*86), "Compressing image")
 			args := []string{"-y", "-i", input, "-frames:v", "1"}
@@ -426,7 +470,7 @@ func (a *App) processImage(input, output, format string, maxMB float64, enforceS
 			}
 			args = append(args, imageCompressionArgs(format, q)...)
 			args = append(args, output)
-			if err := runFFmpeg(args...); err != nil {
+			if err := a.runFFmpegWithCtx(ctx, args...); err != nil {
 				return err
 			}
 			if fileSize(output) <= targetBytes {
@@ -439,6 +483,10 @@ func (a *App) processImage(input, output, format string, maxMB float64, enforceS
 }
 
 func (a *App) processVideo(input, output, format string, maxMB float64, enforceSize bool) error {
+	return a.processVideoWithCtx(context.Background(), input, output, format, maxMB, enforceSize)
+}
+
+func (a *App) processVideoWithCtx(ctx context.Context, input, output, format string, maxMB float64, enforceSize bool) error {
 	a.emitProgress(8, "Reading video")
 	duration, err := probeDuration(input)
 	if err != nil {
@@ -452,7 +500,7 @@ func (a *App) processVideo(input, output, format string, maxMB float64, enforceS
 		args := []string{"-y", "-i", input}
 		args = append(args, videoCodecArgs(format)...)
 		args = append(args, output)
-		return a.runFFmpegWithProgress(duration, args...)
+		return a.runFFmpegWithProgressCtx(ctx, duration, args...)
 	}
 	targetBits := maxMB * 1024 * 1024 * 8
 	totalKbps := math.Floor((targetBits / duration) / 1000 * 0.92)
@@ -484,7 +532,103 @@ func (a *App) processVideo(input, output, format string, maxMB float64, enforceS
 		"-b:a", fmt.Sprintf("%.0fk", audioKbps),
 		output,
 	)
-	return a.runFFmpegWithProgress(duration, args...)
+	return a.runFFmpegWithProgressCtx(ctx, duration, args...)
+}
+
+func (a *App) runFFmpegWithCtx(ctx context.Context, args ...string) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	a.mu.Lock()
+	a.currentCmd = cmd
+	a.mu.Unlock()
+	hideCommandWindow(cmd)
+	output, err := cmd.CombinedOutput()
+	a.mu.Lock()
+	a.currentCmd = nil
+	a.mu.Unlock()
+	if ctx.Err() == context.Canceled {
+		return ctx.Err()
+	}
+	if err != nil {
+		return fmt.Errorf("ffmpeg failed: %s", strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func (a *App) runFFmpegWithProgressCtx(ctx context.Context, duration float64, args ...string) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	progressArgs := append([]string{}, args[:len(args)-1]...)
+	progressArgs = append(progressArgs, "-progress", "pipe:1", "-nostats", args[len(args)-1])
+	cmd := exec.CommandContext(ctx, "ffmpeg", progressArgs...)
+	a.mu.Lock()
+	a.currentCmd = cmd
+	a.mu.Unlock()
+	hideCommandWindow(cmd)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		a.mu.Lock()
+		a.currentCmd = nil
+		a.mu.Unlock()
+		return err
+	}
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		a.mu.Lock()
+		a.currentCmd = nil
+		a.mu.Unlock()
+		return err
+	}
+	scanner := bufio.NewScanner(stdout)
+	a.emitProgress(12, "Processing video")
+	for scanner.Scan() {
+		select {
+		case <-ctx.Done():
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+			a.mu.Lock()
+			a.currentCmd = nil
+			a.mu.Unlock()
+			return ctx.Err()
+		default:
+		}
+		line := scanner.Text()
+		if strings.HasPrefix(line, "out_time_ms=") {
+			value := strings.TrimPrefix(line, "out_time_ms=")
+			microseconds, parseErr := strconv.ParseFloat(value, 64)
+			if parseErr == nil && duration > 0 {
+				seconds := microseconds / 1000000
+				percent := 12 + int((seconds/duration)*86)
+				a.emitProgress(percent, "Processing video")
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		a.mu.Lock()
+		a.currentCmd = nil
+		a.mu.Unlock()
+		return err
+	}
+	err = cmd.Wait()
+	a.mu.Lock()
+	a.currentCmd = nil
+	a.mu.Unlock()
+	if ctx.Err() == context.Canceled {
+		return ctx.Err()
+	}
+	if err != nil {
+		return fmt.Errorf("ffmpeg failed: %s", strings.TrimSpace(stderr.String()))
+	}
+	a.emitProgress(100, "Complete")
+	return nil
 }
 
 func runFFmpeg(args ...string) error {
