@@ -8,7 +8,6 @@ import {
   FileImage,
   FileVideo,
   FolderOpen,
-  Heart,
   Loader2,
   Repeat2,
   Trash2,
@@ -460,12 +459,8 @@ function App() {
         </Tabs>
       </main>
 
-      <footer className="h-9 flex items-center justify-between px-6 border-t border-white/[0.06] bg-[#050505] text-[11px] tracking-wide text-zinc-600 shrink-0">
-        <span className="hidden sm:inline font-medium">Version 1.2</span>
-        <span className="mx-auto font-medium">
-          SmoothOps © 2026 • NEXPRO AI LLP • All Rights Reserved.
-        </span>
-        <span className="hidden sm:flex items-center gap-1">made with <Heart className="h-3 w-3 fill-zinc-700 text-zinc-700" /> by gourav soni</span>
+      <footer className="h-9 flex items-center justify-center px-6 border-t border-white/[0.06] bg-[#050505] text-[11px] tracking-wide text-zinc-600 shrink-0">
+        <span className="font-medium">SmoothOps © 2026 • NEXPRO AI LLP • All Rights Reserved.</span>
       </footer>
     </div>
   );
