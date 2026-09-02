@@ -65,7 +65,7 @@ function App() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [downloadingUpdate, setDownloadingUpdate] = useState(false);
-  const [appVersion, setAppVersion] = useState('1.2.0');
+  const [appVersion, setAppVersion] = useState('0.0.1');
 
   const formats = useMemo(() => {
     if (file?.kind === 'video') return videoFormats;
