@@ -29,6 +29,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const imageFormats = ['jpg', 'jpeg', 'png', 'webp'];
 const videoFormats = ['mp4', 'webm', 'mkv', 'avi', 'm4v'];
 
+function pickDefaultFormat(info: FileInfo): string {
+  const ext = info.extension.toLowerCase();
+  const normalized = ext === 'jpeg' ? 'jpg' : ext;
+  if (info.kind === 'video') {
+    if ((videoFormats as string[]).includes(normalized)) return normalized;
+    if ((videoFormats as string[]).includes(ext)) return ext;
+    return 'mp4';
+  }
+  if (info.kind === 'image') {
+    if ((imageFormats as string[]).includes(normalized)) return normalized;
+    if ((imageFormats as string[]).includes(ext)) return ext;
+    return 'jpg';
+  }
+  // unknown kind — try either list
+  if ((imageFormats as string[]).includes(normalized) || (videoFormats as string[]).includes(normalized)) return normalized;
+  return normalized || 'jpg';
+}
+
 function App() {
   const [tab, setTab] = useState<'compress' | 'convert'>('compress');
   const [file, setFile] = useState<FileInfo | null>(null);
@@ -74,7 +92,7 @@ function App() {
       setResult(null);
       setFile(info);
       setOutputName(suggestOutputName(info.name, tab));
-      setFormat(info.kind === 'video' ? 'mp4' : 'jpg');
+      setFormat(pickDefaultFormat(info));
       setProgress(0);
       setProgressStage('Ready');
       setIsDragOver(false);
@@ -170,7 +188,7 @@ function App() {
           setResult(null);
           setFile(info);
           setOutputName(suggestOutputName(info.name, tab));
-          setFormat(info.kind === 'video' ? 'mp4' : 'jpg');
+          setFormat(pickDefaultFormat(info));
           setProgress(0);
           setProgressStage('Ready');
           return;
@@ -195,7 +213,7 @@ function App() {
     if (selected) {
       setFile(selected);
       setOutputName(suggestOutputName(selected.name, tab));
-      setFormat(selected.kind === 'video' ? 'mp4' : 'jpg');
+      setFormat(pickDefaultFormat(selected));
       setProgress(0);
       setProgressStage('Ready');
     }
