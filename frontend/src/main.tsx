@@ -167,9 +167,20 @@ function App() {
     <main className="app-shell">
       <section className="workspace">
         <header className="topbar">
-          <div>
-            <p className="eyebrow">Desktop media utility</p>
-            <h1>Gonver</h1>
+          <div className="brand">
+            <img
+              src="/so-logo.png"
+              alt="SmoothOps"
+              className="brand-mark-img"
+              width="68"
+              height="38"
+              onError={(e) => ((e.currentTarget.style.display = 'none'))}
+            />
+            <div>
+              <h1>
+                SmoothOps <span>Converter</span>
+              </h1>
+            </div>
           </div>
           <div className="status-cluster">
             <div className={ffmpegReady ? 'status ready' : 'status missing'}>

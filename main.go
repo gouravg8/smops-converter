@@ -15,7 +15,7 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:            "Gonver",
+		Title:            "SmoothOps Converter",
 		Width:            1280,
 		Height:           800,
 		MinWidth:         980,

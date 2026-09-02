@@ -62,12 +62,41 @@ button {
   margin-bottom: 20px;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-mark-img {
+  width: 56px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+  display: block;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+.brand h1 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.brand h1 span {
+  font-weight: 400;
+  color: #8f846e;
+  font-size: 0.72em;
+}
+
 .eyebrow {
   margin: 0 0 6px;
-  color: #b8953b;
+  color: #1e5ba8;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 h1,
