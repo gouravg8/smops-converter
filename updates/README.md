@@ -44,13 +44,13 @@ mv "build/bin/SmoothOps Converter-installer.exe" "SmoothOps-Converter-1.3.0-wind
    ```json
    {
      "version": "1.3.0",
-     "url": "https://github.com/YOUR_ORG/smoothops-converter/releases/download/v1.3.0/SmoothOps-Converter-1.3.0-windows-amd64-installer.exe",
+     "url": "https://github.com/gouravg8/smoothops-converter/releases/download/v1.3.0/SmoothOps-Converter-1.3.0-windows-amd64-installer.exe",
      "notes": "Faster compression, bug fixes",
      "mandatory": false,
      "publishedAt": "2026-09-03"
    }
    ```
-   Host this at the URL in `app.go:UpdateManifestURL` (e.g. `https://raw.githubusercontent.com/YOUR_ORG/smoothops-converter/main/updates/windows/latest.json` or `https://cdn.yourdomain.com/smoothops/windows/latest.json`). Must be HTTPS + CORS `Access-Control-Allow-Origin: *` if fetched from frontend fallback.
+   Host this at the URL in `app.go:UpdateManifestURL` (e.g. `https://raw.githubusercontent.com/gouravg8/smoothops-converter/main/updates/windows/latest.json` or `https://cdn.yourdomain.com/smoothops/windows/latest.json`). Must be HTTPS + CORS `Access-Control-Allow-Origin: *` if fetched from frontend fallback.
 
 5. **Client behavior** (`app.go:CheckForUpdate`, `frontend/src/main.tsx:82`):
    - On launch + every 6h + manual “Check again”, app `GET`s manifest, `compareVersions(latest, 1.2.0) > 0` → `update-available` event.

@@ -24,7 +24,7 @@ import (
 const AppVersion = "1.2.0"
 
 // Change this to your hosted version.json (S3/GitHub Pages/Raw). Windows installer URL is per-platform.
-const UpdateManifestURL = "https://raw.githubusercontent.com/YOUR_ORG/smoothops-converter/main/updates/windows/latest.json"
+const UpdateManifestURL = "https://raw.githubusercontent.com/gouravg8/smops-converter/main/updates/windows/latest.json"
 
 type UpdateInfo struct {
 	Available       bool   `json:"available"`

@@ -90,7 +90,7 @@ console.log(`
 Next push steps (windows):
   1. Upload ${dstName} to GitHub Releases v${version} (or S3)
   2. Edit updates/windows/latest.json url -> actual download URL (currently placeholder)
-     url: https://github.com/YOUR_ORG/smoothops-converter/releases/download/v${version}/${dstName}
+     url: https://github.com/gouravg8/smoothops-converter/releases/download/v${version}/${dstName}
   3. git add wails.json app.go frontend/package.json updates/windows/latest.json
      git commit -m "release: v${version}"
      git push   # raw.githubusercontent.com manifest becomes live -> clients see banner in ~poll interval
