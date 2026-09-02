@@ -1,19 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
+  Archive,
   CheckCircle2,
   Download,
   ExternalLink,
   FileImage,
   FileVideo,
   FolderOpen,
-  Gauge,
   Heart,
   Loader2,
-  PackagePlus,
   Repeat2,
   Trash2,
-  Upload
+  Upload,
+  Wrench
 } from 'lucide-react';
 import './index.css';
 import { appApi, FileInfo, ProcessResult } from './wails';
@@ -180,7 +180,7 @@ function App() {
             <span className="text-[15px] font-[700] tracking-[0.14em] text-zinc-100">SMOOTHOPS</span>
             <span className="text-[15px] font-[300] tracking-wide text-zinc-400">Converter</span>
           </div>
-          <span className="hidden md:inline-flex ml-4 text-[11px] font-medium tracking-widest text-zinc-500 border-l border-white/10 pl-4">v2.1</span>
+          <span className="hidden md:inline-flex ml-4 text-[11px] font-medium tracking-widest text-zinc-500 border-l border-white/10 pl-4">v1.2</span>
         </div>
         <div className="flex items-center gap-2">
           <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${ffmpegReady ? 'bg-zinc-900 border-white/10 text-zinc-300' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
@@ -188,8 +188,8 @@ function App() {
             {ffmpegReady ? 'FFmpeg ready' : 'FFmpeg missing'}
           </div>
           {!ffmpegReady && (
-            <Button size="sm" variant="outline" onClick={installFFmpeg} disabled={installingFFmpeg} className="h-7 border-white/10 bg-white text-black hover:bg-zinc-200 text-xs font-semibold">
-              {installingFFmpeg ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PackagePlus className="h-3.5 w-3.5" />}
+            <Button size="sm" onClick={installFFmpeg} disabled={installingFFmpeg} className="h-7 border border-white bg-white text-black hover:bg-zinc-200 hover:text-black text-xs font-semibold cursor-pointer shadow-sm">
+              {installingFFmpeg ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
               {installingFFmpeg ? 'Installing...' : 'Install FFmpeg'}
             </Button>
           )}
@@ -200,10 +200,10 @@ function App() {
       <main className="flex-1 w-full px-4 md:px-6 py-6 overflow-auto bg-[#080808]">
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
           <TabsList className="bg-[#141414] border border-white/[0.06] p-1 h-9 mb-6 w-full sm:w-auto inline-flex rounded-lg">
-            <TabsTrigger value="compress" className="gap-2 rounded-md text-zinc-400 data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm font-medium">
-              <Gauge className="h-3.5 w-3.5" /> Compress
+            <TabsTrigger value="compress" className="gap-2 rounded-md text-zinc-400 data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm font-medium cursor-pointer">
+              <Archive className="h-3.5 w-3.5" /> Compress
             </TabsTrigger>
-            <TabsTrigger value="convert" className="gap-2 rounded-md text-zinc-400 data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm font-medium">
+            <TabsTrigger value="convert" className="gap-2 rounded-md text-zinc-400 data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm font-medium cursor-pointer">
               <Repeat2 className="h-3.5 w-3.5" /> Convert
             </TabsTrigger>
           </TabsList>
@@ -214,7 +214,7 @@ function App() {
               <CardContent className="p-5 md:p-6 space-y-5">
                 <button
                   onClick={selectFile}
-                  className={`w-full flex items-center gap-4 rounded-xl border p-5 text-left transition-all ${file ? 'border-white/15 bg-white/[0.04] hover:bg-white/[0.06]' : 'border-dashed border-white/10 bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/15'}`}
+                  className={`w-full flex items-center gap-4 rounded-xl border p-5 text-left transition-all cursor-pointer ${file ? 'border-white/15 bg-white/[0.04] hover:bg-white/[0.06]' : 'border-dashed border-white/10 bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/15'}`}
                 >
                   <div className={`h-12 w-12 shrink-0 grid place-items-center rounded-lg border ${file ? 'bg-white text-black border-white' : 'bg-[#0a0a0a] text-zinc-400 border-white/10'}`}>{file ? selectedIcon : <Upload className="h-5 w-5" />}</div>
                   <div className="min-w-0 flex-1">
@@ -224,7 +224,7 @@ function App() {
                 </button>
 
                 {file && (
-                  <Button variant="ghost" size="sm" onClick={removeCurrentFile} className="h-7 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 -mt-2 text-xs">
+                  <Button variant="ghost" size="sm" onClick={removeCurrentFile} className="h-7 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 -mt-2 text-xs cursor-pointer">
                     <Trash2 className="h-3.5 w-3.5" /> Remove file
                   </Button>
                 )}
@@ -260,7 +260,7 @@ function App() {
                     <Label className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Output folder</Label>
                     <div className="flex gap-2">
                       <Input value={outputDir || 'Same as source file'} readOnly className="bg-[#0a0a0a] border-white/10 text-zinc-500" />
-                      <Button type="button" onClick={selectOutputDir} size="icon" className="shrink-0 bg-white text-black hover:bg-zinc-200 border border-white">
+                      <Button type="button" onClick={selectOutputDir} size="icon" className="shrink-0 bg-white text-black hover:bg-zinc-200 hover:text-black border border-white cursor-pointer">
                         <FolderOpen className="h-4 w-4" />
                       </Button>
                     </div>
@@ -275,8 +275,8 @@ function App() {
                   <Progress value={progress} className="h-1.5 bg-zinc-900 [&>div]:bg-white" />
                 </div>
 
-                <Button onClick={runJob} disabled={busy || !ffmpegReady} className="w-full h-[44px] text-[13px] font-semibold bg-white text-black hover:bg-zinc-200 shadow-[0_1px_0_rgba(255,255,255,0.1)_inset] disabled:opacity-40">
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                <Button onClick={runJob} disabled={busy || !ffmpegReady} className="w-full h-[44px] text-[13px] font-semibold bg-white text-black hover:bg-zinc-200 hover:text-black shadow-[0_1px_0_rgba(255,255,255,0.1)_inset] disabled:opacity-40 cursor-pointer">
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : tab === 'compress' ? <Archive className="h-4 w-4" /> : <Download className="h-4 w-4" />}
                   {busy ? 'Working...' : actionLabel}
                 </Button>
 
@@ -302,15 +302,25 @@ function App() {
                       </div>
                     </div>
                     <code className="block rounded-lg bg-[#141414] p-3 text-xs break-all text-zinc-400 border border-white/10 font-mono">{result.outputPath}</code>
-                    <Button onClick={openResultFolder} className="w-full bg-white text-black hover:bg-zinc-200">
+                    <Button onClick={openResultFolder} className="w-full bg-white text-black hover:bg-zinc-200 hover:text-black cursor-pointer">
                       <ExternalLink className="h-4 w-4" /> Show in folder
                     </Button>
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center space-y-2">
-                    <div className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">{tab === 'compress' ? 'Target size preview' : 'Format preview'}</div>
-                    <div className="text-sm font-medium text-zinc-200">{file ? `${file.name} → ${format.toUpperCase()}` : 'Waiting for a file'}</div>
-                    <div className="text-xs text-zinc-600">Select a file to see output details</div>
+                  <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-center space-y-3">
+                    <div className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Output file</div>
+                    {file ? (
+                      <>
+                        <div className="text-sm font-medium text-zinc-100 break-all">{(outputName ? outputName.replace(/\.[^/.]+$/, '') : file.name.replace(/\.[^/.]+$/, '').replace(/-compressed$|-converted$/, '') + (tab === 'compress' ? '-compressed' : '-converted')) + '.' + format}</div>
+                        <div className="text-xs text-zinc-500">Format: {format.toUpperCase()} • Folder: <span className="text-zinc-400">{outputDir || 'Same as source'}</span></div>
+                        <div className="text-xs text-zinc-600">Will be created after you run {tab === 'compress' ? 'compression' : 'conversion'}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-sm font-medium text-zinc-400">No output yet</div>
+                        <div className="text-xs text-zinc-600">Select a file and run {tab === 'compress' ? 'compress' : 'convert'} to generate output file here</div>
+                      </>
+                    )}
                   </div>
                 )}
                 <div className="mt-4 flex items-center gap-2 text-xs text-zinc-600 font-medium">
@@ -324,7 +334,7 @@ function App() {
       </main>
 
       <footer className="h-9 flex items-center justify-between px-6 border-t border-white/[0.06] bg-[#050505] text-[11px] tracking-wide text-zinc-600 shrink-0">
-        <span className="hidden sm:inline font-medium">Version 2.1</span>
+        <span className="hidden sm:inline font-medium">Version 1.2</span>
         <span className="mx-auto font-medium">
           SmoothOps © 2026 • NEXPRO AI LLP • All Rights Reserved.
         </span>

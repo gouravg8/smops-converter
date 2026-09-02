@@ -104,6 +104,9 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
+  button, [role="button"], a {
+    cursor: pointer;
+  }
 }
 
 /* keep legacy full-size layout helpers */
