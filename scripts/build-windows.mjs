@@ -81,8 +81,10 @@ sh(wailsBin, buildArgs);
 // 3. auto-rename with version (handles both installer and plain exe)
 const binDir = path.join(root, 'build', 'bin');
 const files = fs.readdirSync(binDir);
-// prefer installer exe if exists, otherwise any SmoothOps*.exe not yet versioned
-let srcFile = files.find(f => f.toLowerCase().includes('installer') && f.endsWith('.exe'));
+// prefer installer exe if exists (newest first — stale versioned files may linger), otherwise any SmoothOps*.exe not yet versioned
+let srcFile = files
+  .filter(f => f.toLowerCase().includes('installer') && f.endsWith('.exe'))
+  .sort((a, b) => fs.statSync(path.join(binDir, b)).mtimeMs - fs.statSync(path.join(binDir, a)).mtimeMs)[0];
 if (!srcFile) {
   // fallback: find the main exe (e.g. "SmoothOps Converter.exe")
   const candidates = files.filter(f => f.endsWith('.exe') && !f.startsWith('SmoothOps-Converter-') && f.toLowerCase().includes('smoothops'));

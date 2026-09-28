@@ -21,7 +21,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-const AppVersion = "0.0.1"
+const AppVersion = "0.0.2"
 
 // Change this to your hosted version.json (S3/GitHub Pages/Raw). Windows installer URL is per-platform.
 const UpdateManifestURL = "https://raw.githubusercontent.com/gouravg8/smops-converter/main/updates/windows/latest.json"
