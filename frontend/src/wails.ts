@@ -49,6 +49,7 @@ type GoBridge = {
       DownloadAndInstallUpdate(url: string): Promise<void>;
       Cancel(): Promise<void>;
       GetFileInfo(path: string): Promise<FileInfo>;
+      RepairVideo(path: string): Promise<FileInfo>;
     };
   };
 };

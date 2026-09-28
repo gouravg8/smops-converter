@@ -527,6 +527,66 @@ func (a *App) installLinuxFFmpeg() error {
 	return nil
 }
 
+const errVideoNeedsRepairPrefix = "VIDEO_NEEDS_REPAIR::"
+
+func (a *App) RepairVideo(inputPath string) (*FileInfo, error) {
+	if strings.TrimSpace(inputPath) == "" {
+		return nil, errors.New("select a file first")
+	}
+	if !a.CheckFFmpeg() {
+		return nil, errors.New("ffmpeg and ffprobe are required to repair videos")
+	}
+	info, err := inspectFile(inputPath)
+	if err != nil {
+		return nil, err
+	}
+	if info.Kind != "video" {
+		return nil, errors.New("only video files need repairing")
+	}
+
+	dir := filepath.Dir(inputPath)
+	ext := normalizeFormat(info.Extension)
+	if ext == "" {
+		ext = "mp4"
+	}
+	base := strings.TrimSuffix(info.Name, filepath.Ext(info.Name)) + "-fixed"
+	fixedPath := uniqueOutputPath(dir, sanitizeFileName(base), ext)
+
+	baseCtx := a.ctx
+	if baseCtx == nil {
+		baseCtx = context.Background()
+	}
+	jobCtx, cancel := context.WithCancel(baseCtx)
+	a.mu.Lock()
+	a.cancelFunc = cancel
+	a.mu.Unlock()
+	defer func() {
+		a.mu.Lock()
+		a.cancelFunc = nil
+		a.currentCmd = nil
+		a.mu.Unlock()
+		cancel()
+	}()
+
+	a.emitProgress(10, "Repairing video")
+	// Fast remux: no re-encode, just rebuilds the container so duration/index is rewritten.
+	args := []string{"-y", "-i", inputPath, "-c", "copy", "-movflags", "+faststart", fixedPath}
+	if err := a.runFFmpegWithCtx(jobCtx, args...); err != nil {
+		if errors.Is(err, context.Canceled) || jobCtx.Err() == context.Canceled {
+			_ = os.Remove(fixedPath)
+			return nil, errors.New("cancelled")
+		}
+		_ = os.Remove(fixedPath)
+		return nil, err
+	}
+	if d, err := probeDuration(fixedPath); err != nil || d <= 0 {
+		_ = os.Remove(fixedPath)
+		return nil, errors.New("repair finished but the video duration is still unreadable — the file may be corrupted")
+	}
+	a.emitProgress(100, "Video repaired")
+	return inspectFile(fixedPath)
+}
+
 func (a *App) Cancel() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -882,13 +942,45 @@ func (a *App) runFFmpegWithProgress(duration float64, args ...string) error {
 }
 
 func probeDuration(input string) (float64, error) {
-	cmd := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", input)
+	// Try container duration first.
+	if d, err := ffprobeDuration([]string{"-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", input}); err == nil && d > 0 {
+		return d, nil
+	}
+	// Fallback: longest stream duration (handles files where format duration is N/A,
+	// e.g. fragmented MP4s, screen recordings, WhatsApp forwards).
+	if d, err := ffprobeDuration([]string{"-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration", "-of", "default=noprint_wrappers=1:nokey=1", input}); err == nil && d > 0 {
+		return d, nil
+	}
+	if d, err := ffprobeDuration([]string{"-v", "error", "-show_entries", "stream=duration", "-of", "default=noprint_wrappers=1:nokey=1", input}); err == nil && d > 0 {
+		return d, nil
+	}
+	return 0, errors.New(errVideoNeedsRepairPrefix + "This video's duration can't be read (header says N/A), so compression can't start. Click \"Fix video & retry\" — it rebuilds the file quickly without losing quality, then compresses the fixed copy.")
+}
+
+func ffprobeDuration(args []string) (float64, error) {
+	cmd := exec.Command("ffprobe", args...)
 	hideCommandWindow(cmd)
 	output, err := cmd.Output()
 	if err != nil {
 		return 0, err
 	}
-	return strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
+	// ffprobe may print one line per stream or "N/A" — pick the largest numeric value.
+	best := 0.0
+	found := false
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || line == "N/A" {
+			continue
+		}
+		if v, err := strconv.ParseFloat(line, 64); err == nil && v > 0 && v > best {
+			best = v
+			found = true
+		}
+	}
+	if !found {
+		return 0, errors.New("no duration found")
+	}
+	return best, nil
 }
 
 func imageCodecArgs(format string) []string {
