@@ -359,30 +359,37 @@ function App() {
       onDrop={handleDrop}
     >
       {/* Top nav - premium black, no blue bg */}
-      <header className="h-14 flex items-center justify-between border-b border-white/6 bg-[#0a0a0a] px-6 shrink-0">
-        <div className="flex items-center gap-3">
-          <img src="/so-logo.png" alt="SmoothOps" className="h-6 w-auto object-contain opacity-90" onError={(e) => ((e.currentTarget.style.display = 'none'))} />
-          <div className="flex items-baseline gap-2">
-            <span className="text-[15px] font-bold tracking-[0.14em] text-zinc-100">SMOOTHOPS</span>
-            <span className="text-[15px] font-light tracking-wide text-zinc-400">Converter</span>
+      {/* Navbar: brand · FFmpeg status */}
+      <header className="h-14 flex items-center justify-between gap-4 border-b border-white/6 bg-[#0a0a0a] px-8 md:px-12 shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <img src="/so-logo.png" alt="SmoothOps" className="h-5 w-auto object-contain" onError={(e) => ((e.currentTarget.style.display = 'none'))} />
+          <div className="flex items-baseline gap-1.5 min-w-0 truncate">
+            <span className="text-sm font-bold tracking-[0.14em] text-zinc-100">SMOOTHOPS</span>
+            <span className="text-sm font-light text-zinc-400">Converter</span>
           </div>
-          <span className="hidden md:inline-flex ml-4 text-[11px] font-medium tracking-widest text-zinc-500 border-l border-white/10 pl-4">v{appVersion}</span>
+          <span className="text-[11px] tabular-nums text-zinc-600">v{appVersion}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${ffmpegReady ? 'bg-zinc-900 border-white/10 text-zinc-300' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${ffmpegReady ? 'bg-emerald-400' : 'bg-red-500 animate-pulse'}`} />
-            {ffmpegReady ? 'FFmpeg ready' : 'FFmpeg missing'}
-          </div>
-          {!ffmpegReady && (
-            <Button
-              size="sm"
-              onClick={installFFmpeg}
-              disabled={installingFFmpeg}
-              className="h-7 border border-primary/30 bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold cursor-pointer shadow-[0_0_12px_rgba(45,212,191,0.25)] animate-pulse hover:animate-none"
-            >
-              {installingFFmpeg ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              {installingFFmpeg ? 'Installing...' : 'Install FFmpeg'}
-            </Button>
+
+        <div className="flex items-center justify-end gap-2">
+          {ffmpegReady ? (
+            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500" title="FFmpeg is installed">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> FFmpeg
+            </span>
+          ) : (
+            <>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" /> FFmpeg missing
+              </span>
+              <Button
+                size="sm"
+                onClick={installFFmpeg}
+                disabled={installingFFmpeg}
+                className="h-7 bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold cursor-pointer"
+              >
+                {installingFFmpeg ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                {installingFFmpeg ? 'Installing...' : 'Install'}
+              </Button>
+            </>
           )}
         </div>
       </header>
@@ -420,15 +427,15 @@ function App() {
         </div>
       )}
 
-      {/* Workspace - single centered column: file → options → action → result */}
+      {/* Workspace - single centered column: mode switch → file → options → action → result */}
       <main className="flex-1 w-full px-4 md:px-6 py-8 overflow-auto bg-[#080808]">
         <div className="mx-auto w-full max-w-160 space-y-4">
-          <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="flex justify-center">
-            <TabsList className="bg-[#141414] border border-white/6 p-1 h-10 rounded-lg">
-              <TabsTrigger value="compress" disabled={busy} className="gap-2 px-5 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer disabled:opacity-40">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+            <TabsList className="bg-[#111111] border border-white/6 p-1 h-10 rounded-lg">
+              <TabsTrigger value="compress" disabled={busy} className="gap-2 px-4 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer disabled:opacity-40">
                 <Archive className="h-3.5 w-3.5" /> Compress
               </TabsTrigger>
-              <TabsTrigger value="convert" disabled={busy} className="gap-2 px-5 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer disabled:opacity-40">
+              <TabsTrigger value="convert" disabled={busy} className="gap-2 px-4 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer disabled:opacity-40">
                 <Repeat2 className="h-3.5 w-3.5" /> Convert
               </TabsTrigger>
             </TabsList>
