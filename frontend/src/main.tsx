@@ -10,7 +10,6 @@ import {
   FolderOpen,
   Loader2,
   Repeat2,
-  Trash2,
   Upload,
   X
 } from 'lucide-react';
@@ -18,12 +17,9 @@ import './index.css';
 import { appApi, FileInfo, ProcessResult, UpdateInfo } from './wails';
 import { EventsOff, EventsOn } from '../wailsjs/runtime/runtime';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const imageFormats = ['jpg', 'jpeg', 'png', 'webp'];
@@ -131,7 +127,7 @@ function App() {
         return;
       }
       if (paths && paths.length > 0) {
-        appApi
+        appApi()
           .GetFileInfo(paths[0])
           .then(onDropped)
           .catch((e: any) => onError(e instanceof Error ? e.message : String(e)));
@@ -203,7 +199,7 @@ function App() {
       const droppedPath = f.path as string | undefined;
       if (droppedPath) {
         try {
-          const info = await appApi.GetFileInfo(droppedPath);
+          const info = await appApi().GetFileInfo(droppedPath);
           setError('');
           setResult(null);
           setFile(info);
@@ -424,170 +420,192 @@ function App() {
         </div>
       )}
 
-      {/* Workspace - full dims, shades of black */}
-      <main className="flex-1 w-full px-4 md:px-6 py-6 overflow-auto bg-[#080808]">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
-          <TabsList className="bg-[#141414] border border-white/[0.06] p-1 h-9 mb-6 w-full sm:w-auto inline-flex rounded-lg">
-            <TabsTrigger value="compress" disabled={busy} className="gap-2 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer disabled:opacity-40">
-              <Archive className="h-3.5 w-3.5" /> Compress
-            </TabsTrigger>
-            <TabsTrigger value="convert" disabled={busy} className="gap-2 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer disabled:opacity-40">
-              <Repeat2 className="h-3.5 w-3.5" /> Convert
-            </TabsTrigger>
-          </TabsList>
+      {/* Workspace - single centered column: file → options → action → result */}
+      <main className="flex-1 w-full px-4 md:px-6 py-8 overflow-auto bg-[#080808]">
+        <div className="mx-auto w-full max-w-[640px] space-y-4">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="flex justify-center">
+            <TabsList className="bg-[#141414] border border-white/[0.06] p-1 h-10 rounded-lg">
+              <TabsTrigger value="compress" disabled={busy} className="gap-2 px-5 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer disabled:opacity-40">
+                <Archive className="h-3.5 w-3.5" /> Compress
+              </TabsTrigger>
+              <TabsTrigger value="convert" disabled={busy} className="gap-2 px-5 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer disabled:opacity-40">
+                <Repeat2 className="h-3.5 w-3.5" /> Convert
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-          <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] xl:grid-cols-[1.1fr_0.9fr] gap-6 items-start max-w-[1600px] mx-auto w-full">
-            {/* Left: Tool panel - premium black card */}
-            <Card className="border-white/[0.06] bg-[#111111] overflow-hidden shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset,0_1px_20px_rgba(0,0,0,0.4)]">
-              <CardContent className="p-5 md:p-6 space-y-5">
+          {/* Global progress for FFmpeg install / app update (jobs show progress in the action button) */}
+          {(installingFFmpeg || downloadingUpdate) && (
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-[11px] font-medium text-zinc-500">
+                <span>{progressStage}</span>
+                <span className="tabular-nums text-zinc-300">{progress}%</span>
+              </div>
+              <div className="h-1 rounded-full bg-zinc-900 overflow-hidden">
+                <div className="h-full bg-primary transition-[width] duration-300" style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-white/[0.06] bg-[#111111] shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset,0_1px_20px_rgba(0,0,0,0.4)] overflow-hidden">
+            {/* File */}
+            {file ? (
+              <div className="flex items-center gap-4 p-5 border-b border-white/[0.06]">
                 <button
                   onClick={selectFile}
                   disabled={busy}
-                  onDragOver={handleDragOver}
-                  onDragEnter={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={`w-full flex items-center gap-4 rounded-xl border p-5 text-left transition-all ${busy ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${isDragOver ? 'border-white bg-white/[0.08] border-solid' : file ? 'border-white/15 bg-white/[0.04] hover:bg-white/[0.06]' : 'border-dashed border-white/10 bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/15'}`}
+                  title="Choose a different file"
+                  className="h-11 w-11 shrink-0 grid place-items-center rounded-full bg-primary text-primary-foreground cursor-pointer disabled:cursor-not-allowed"
                 >
-                  <div className={`h-12 w-12 shrink-0 grid place-items-center rounded-full border transition-colors ${isDragOver ? 'bg-primary text-primary-foreground border-primary' : file ? 'bg-primary text-primary-foreground border-primary' : 'bg-primary/15 text-primary border-primary/20'}`}>{isDragOver ? <Download className="h-5 w-5 animate-bounce" /> : file ? selectedIcon : <Upload className="h-5 w-5" />}</div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14px] font-medium text-zinc-100">{isDragOver ? 'Drop file here' : file ? file.name : 'Select image or video'}</div>
-                    <div className={`truncate text-xs mt-1 font-normal ${isDragOver ? 'text-zinc-300' : 'text-zinc-500'}`}>{isDragOver ? 'Release to load image or video' : file ? `${file.kind.toUpperCase()} • ${file.extension.toUpperCase()} • ${file.sizeLabel}` : 'JPG, PNG, WEBP, MP4, MOV, MKV, AVI, WEBM • or drag & drop'}</div>
-                  </div>
+                  {selectedIcon}
                 </button>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14px] font-medium text-zinc-100">{file.name}</div>
+                  <div className="truncate text-xs mt-1 text-zinc-500">{file.kind.toUpperCase()} · {file.extension.toUpperCase()} · {file.sizeLabel}</div>
+                </div>
+                <Button variant="ghost" size="icon" onClick={removeCurrentFile} disabled={busy} title="Remove file" className="h-8 w-8 shrink-0 text-zinc-500 hover:text-zinc-100 hover:bg-white/5 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <button
+                onClick={selectFile}
+                disabled={busy}
+                onDragOver={handleDragOver}
+                onDragEnter={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`w-full flex flex-col items-center justify-center gap-3 px-6 py-12 text-center border-b border-white/[0.06] transition-colors ${busy ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${isDragOver ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]'}`}
+              >
+                <div className="h-12 w-12 grid place-items-center rounded-full bg-primary/15 text-primary border border-primary/20">
+                  {isDragOver ? <Download className="h-5 w-5 animate-bounce" /> : <Upload className="h-5 w-5" />}
+                </div>
+                <div>
+                  <div className="text-[14px] font-medium text-zinc-100">{isDragOver ? 'Drop file here' : 'Drop an image or video, or click to browse'}</div>
+                  <div className="text-xs mt-1 text-zinc-500">JPG, PNG, WEBP, MP4, MOV, MKV, AVI, WEBM</div>
+                </div>
+              </button>
+            )}
 
-                {file && (
-                  <Button variant="ghost" size="sm" onClick={removeCurrentFile} disabled={busy} className="h-7 text-zinc-500 hover:text-zinc-200 hover:bg-white/5 -mt-2 text-xs cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
-                    <Trash2 className="h-3.5 w-3.5" /> Remove file
-                  </Button>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {tab === 'compress' && (
-                    <div className="space-y-2">
-                      <Label htmlFor="max-size" className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Max output size</Label>
-                      <div className="relative flex items-center rounded-md border border-white/10 bg-[#0a0a0a] focus-within:border-white/20 focus-within:ring-1 focus-within:ring-white/10">
-                        <Input
-                          id="max-size"
-                          type="number"
-                          min="0.1"
-                          step="0.1"
-                          value={maxSizeMB}
-                          onChange={(e) => setMaxSizeMB(Number(e.target.value))}
-                          disabled={busy}
-                          className="border-0 bg-transparent pr-14 focus-visible:ring-0 focus-visible:border-0 shadow-none disabled:opacity-40"
-                        />
-                        <span className="absolute right-1 inline-flex h-7 items-center rounded-md bg-zinc-900 border border-white/10 px-2.5 text-xs font-semibold text-zinc-400 pointer-events-none">MB</span>
-                      </div>
-                    </div>
-                  )}
+            {/* Options */}
+            <div className="p-5 space-y-4">
+              <div className={`grid gap-4 ${tab === 'compress' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {tab === 'compress' && (
                   <div className="space-y-2">
-                    <Label className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Output format</Label>
-                    <Select value={format} onValueChange={setFormat} disabled={busy}>
-                      <SelectTrigger className="bg-[#0a0a0a] border-white/10 disabled:opacity-40"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-[#141414] border-white/10">
-                        {formats.map((item) => (
-                          <SelectItem key={item} value={item}>{item.toUpperCase()}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Output name</Label>
-                    <Input value={outputName} onChange={(e) => setOutputName(e.target.value)} placeholder="Leave blank to auto-name" disabled={busy} className="bg-[#0a0a0a] border-white/10 focus-visible:border-white/20 placeholder:text-zinc-600 disabled:opacity-40" />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Output folder</Label>
-                    <div className="flex gap-2">
-                      <Input value={outputDir || 'Same as source file'} readOnly disabled={busy} className="bg-[#0a0a0a] border-white/10 text-zinc-500 disabled:opacity-40" />
-                      <Button type="button" onClick={selectOutputDir} disabled={busy} size="icon" className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 border border-primary cursor-pointer disabled:opacity-40">
-                        <FolderOpen className="h-4 w-4" />
-                      </Button>
+                    <Label htmlFor="max-size" className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Max size</Label>
+                    <div className="relative">
+                      <Input
+                        id="max-size"
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={maxSizeMB}
+                        onChange={(e) => setMaxSizeMB(Number(e.target.value))}
+                        disabled={busy}
+                        className="bg-[#0a0a0a] border-white/10 pr-12 focus-visible:border-white/20 disabled:opacity-40 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-zinc-500 pointer-events-none">MB</span>
                     </div>
                   </div>
+                )}
+                <div className="space-y-2">
+                  <Label className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Format</Label>
+                  <Select value={format} onValueChange={setFormat} disabled={busy}>
+                    <SelectTrigger className="bg-[#0a0a0a] border-white/10 disabled:opacity-40"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-[#141414] border-white/10">
+                      {formats.map((item) => (
+                        <SelectItem key={item} value={item}>{item.toUpperCase()}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
 
-                <div className="space-y-2 pt-3 border-t border-white/[0.06]">
-                  <div className="flex justify-between text-[11px] font-medium tracking-wide">
-                    <span className="text-zinc-500 uppercase">{progressStage}</span>
-                    <span className="text-zinc-200 tabular-nums">{progress}%</span>
-                  </div>
-                  <Progress value={progress} className="h-1.5 bg-zinc-900 [&>div]:bg-primary" />
+              <div className="space-y-2">
+                <Label className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Save as</Label>
+                <div className="relative">
+                  <Input value={outputName} onChange={(e) => setOutputName(e.target.value)} placeholder="Leave blank to auto-name" disabled={busy} className="bg-[#0a0a0a] border-white/10 pr-16 focus-visible:border-white/20 placeholder:text-zinc-600 disabled:opacity-40" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">.{format}</span>
                 </div>
+              </div>
 
-                {busy ? (
-                  <div className="grid grid-cols-[1fr_auto] gap-2">
-                    <Button disabled className="h-[44px] text-[13px] font-semibold bg-primary/80 text-primary-foreground cursor-not-allowed">
-                      <Loader2 className="h-4 w-4 animate-spin" /> {progressStage.toLowerCase().includes('repair') ? 'Repairing video...' : 'Working...'}
-                    </Button>
-                    <Button onClick={cancelJob} variant="outline" className="h-[44px] px-6 border-white/15 bg-transparent hover:bg-white/10 text-zinc-200 cursor-pointer">
+              <div className="flex items-center gap-3 text-sm">
+                <FolderOpen className="h-4 w-4 shrink-0 text-zinc-500" />
+                <span className={`min-w-0 flex-1 truncate ${outputDir ? 'text-zinc-300' : 'text-zinc-500'}`} title={outputDir || undefined}>{outputDir || 'Same folder as source file'}</span>
+                {outputDir && (
+                  <Button variant="ghost" size="sm" onClick={() => setOutputDir('')} disabled={busy} className="h-7 px-2 text-xs text-zinc-500 hover:text-zinc-200 hover:bg-white/5 cursor-pointer">Reset</Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={selectOutputDir} disabled={busy} className="h-7 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10 cursor-pointer">Change</Button>
+              </div>
+            </div>
+
+            {/* Action — turns into the progress bar while running */}
+            <div className="px-5 pb-5">
+              {busy ? (
+                <div className="relative h-[44px] rounded-md bg-zinc-900 border border-white/10 overflow-hidden">
+                  <div className="absolute inset-y-0 left-0 bg-primary/25 transition-[width] duration-300" style={{ width: `${progress}%` }} />
+                  <div className="relative h-full flex items-center gap-3 pl-4 pr-1.5 text-[13px] font-medium text-zinc-100">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="flex-1 truncate">{progressStage}</span>
+                    <span className="tabular-nums text-zinc-300">{progress}%</span>
+                    <Button onClick={cancelJob} variant="ghost" size="sm" className="h-8 px-3 text-zinc-300 hover:text-white hover:bg-white/10 cursor-pointer">
                       <X className="h-4 w-4" /> Cancel
                     </Button>
                   </div>
-                ) : (
-                  <Button onClick={() => runJob()} disabled={!ffmpegReady} className="w-full h-[44px] text-[13px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_1px_0_rgba(255,255,255,0.1)_inset] disabled:opacity-40 cursor-pointer">
-                    {tab === 'compress' ? <Archive className="h-4 w-4" /> : <Download className="h-4 w-4" />}
-                    {actionLabel}
-                  </Button>
-                )}
-
-                {error && (
-                  <div className="rounded-lg bg-red-500/[0.06] border border-red-500/20 p-3">
-                    <div className="text-sm font-medium text-red-400">{error}</div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Right: Output */}
-            <Card className="border-white/[0.06] bg-[#111111] sticky top-6 shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset]">
-              <CardHeader className="pb-3 border-b border-white/[0.06]">
-                <CardTitle className="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-500">{tab === 'compress' ? 'Compression output' : 'Conversion output'}</CardTitle>
-              </CardHeader>
-              <CardContent className="p-5">
-                {result ? (
-                  <div className="rounded-xl border border-white/10 bg-[#0a0a0a] p-4 space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="h-8 w-8 grid place-items-center rounded-full bg-primary text-primary-foreground shrink-0">
-                        <CheckCircle2 className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-sm text-zinc-100 truncate">{result.outputName}</div>
-                        <div className="text-xs text-zinc-500 mt-1 flex items-center gap-1.5">{result.sizeLabel} <span className="h-1 w-1 rounded-full bg-white/20" /> <span className="inline-flex items-center rounded-full px-2 py-0.5 bg-zinc-800 border border-white/10 text-zinc-300 text-[11px] font-medium">Completed</span></div>
-                      </div>
-                    </div>
-                    <code className="block rounded-lg bg-[#141414] p-3 text-xs break-all text-zinc-400 border border-white/10 font-mono">{result.outputPath}</code>
-                    <Button onClick={openResultFolder} className="w-full bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer">
-                      <ExternalLink className="h-4 w-4" /> Show in folder
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-center space-y-3">
-                    <div className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Output file</div>
-                    {file ? (
-                      <>
-                        <div className="text-sm font-medium text-zinc-100 break-all">{(outputName ? outputName.replace(/\.[^/.]+$/, '') : file.name.replace(/\.[^/.]+$/, '').replace(/-compressed$|-converted$/, '') + (tab === 'compress' ? '-compressed' : '-converted')) + '.' + format}</div>
-                        <div className="text-xs text-zinc-500">Format: {format.toUpperCase()} • Folder: <span className="text-zinc-400">{outputDir || 'Same as source'}</span></div>
-                        <div className="text-xs text-zinc-600">Will be created after you run {tab === 'compress' ? 'compression' : 'conversion'}</div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-sm font-medium text-zinc-400">No output yet</div>
-                        <div className="text-xs text-zinc-600">Select a file and run {tab === 'compress' ? 'compress' : 'convert'} to generate output file here</div>
-                      </>
-                    )}
-                  </div>
-                )}
-                <div className="mt-4 flex items-center gap-2 text-xs text-zinc-600 font-medium">
-                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-500" />
-                  {file ? `${formats.length} formats available` : 'Ready • Drop a file to start'}
                 </div>
-              </CardContent>
-            </Card>
+              ) : (
+                <Button onClick={() => runJob()} disabled={!ffmpegReady || !file} className="w-full h-[44px] text-[13px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_1px_0_rgba(255,255,255,0.1)_inset] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed">
+                  {tab === 'compress' ? <Archive className="h-4 w-4" /> : <Repeat2 className="h-4 w-4" />}
+                  {actionLabel}
+                </Button>
+              )}
+              {!busy && progressStage === 'Cancelled' && (
+                <div className="mt-2 text-center text-xs text-zinc-500">Cancelled</div>
+              )}
+            </div>
           </div>
-        </Tabs>
+
+          {error && (
+            <div className="rounded-lg bg-red-500/[0.06] border border-red-500/20 p-3">
+              <div className="text-sm font-medium text-red-400 break-words">{error}</div>
+            </div>
+          )}
+
+          {result && (
+            <div className="rounded-xl border border-primary/20 bg-[#111111] p-5 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="h-8 w-8 grid place-items-center rounded-full bg-primary text-primary-foreground shrink-0">
+                  <CheckCircle2 className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-sm text-zinc-100 truncate" title={result.outputPath}>{result.outputName}</div>
+                  <div className="text-xs text-zinc-500 mt-1 truncate" title={result.outputPath}>{result.outputPath}</div>
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2 text-sm">
+                {file && <span className="text-zinc-500">{file.sizeLabel}</span>}
+                {file && <span className="text-zinc-600">→</span>}
+                <span className="text-lg font-semibold text-zinc-100">{result.sizeLabel}</span>
+                {file && file.sizeBytes > 0 && (
+                  <span className={`text-xs font-medium ${result.sizeBytes <= file.sizeBytes ? 'text-primary' : 'text-amber-400'}`}>
+                    ({result.sizeBytes <= file.sizeBytes ? '−' : '+'}{Math.abs(Math.round((1 - result.sizeBytes / file.sizeBytes) * 100))}%)
+                  </span>
+                )}
+                {tab === 'compress' && maxSizeMB > 0 && (
+                  <span className="ml-auto text-xs text-zinc-500">{Math.round((result.sizeBytes / (maxSizeMB * 1024 * 1024)) * 100)}% of {maxSizeMB} MB limit</span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button onClick={openResultFolder} className="bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer">
+                  <ExternalLink className="h-4 w-4" /> Show in folder
+                </Button>
+                <Button onClick={removeCurrentFile} variant="outline" className="border-white/15 bg-transparent hover:bg-white/10 text-zinc-200 cursor-pointer">
+                  {tab === 'compress' ? 'Compress another' : 'Convert another'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </main>
 
       <footer className="h-9 flex items-center justify-center px-6 border-t border-white/[0.06] bg-[#050505] text-[11px] tracking-wide text-zinc-600 shrink-0">
