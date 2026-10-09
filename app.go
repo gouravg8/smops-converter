@@ -852,7 +852,9 @@ func (a *App) processVideoWithCtx(ctx context.Context, input, output, format str
 		return a.runFFmpegWithProgressCtx(ctx, duration, args...)
 	}
 	targetBits := maxMB * 1024 * 1024 * 8
-	totalKbps := math.Floor((targetBits / duration) / 1000 * 0.92)
+	targetBytes := int64(maxMB * 1024 * 1024)
+	const fillFactor = 0.95
+	totalKbps := math.Floor((targetBits / duration) / 1000 * fillFactor)
 	audioKbps := 96.0
 	videoKbps := totalKbps - audioKbps
 	if videoKbps < 120 {
@@ -861,7 +863,7 @@ func (a *App) processVideoWithCtx(ctx context.Context, input, output, format str
 	}
 	if videoKbps < 80 {
 		minKbps := 80.0 + 64.0
-		minMB := (minKbps*1000*duration/0.92)/8/1024/1024
+		minMB := (minKbps*1000*duration/fillFactor)/8/1024/1024
 		minMB = math.Ceil(minMB*10) / 10
 		if minMB < 0.5 {
 			minMB = 0.5
@@ -869,16 +871,66 @@ func (a *App) processVideoWithCtx(ctx context.Context, input, output, format str
 		return fmt.Errorf("target %.1f MB too small for %.0fs video (needs ≥80 kbps video + 64 kbps audio). Try at least %.1f MB or use Convert without size limit", maxMB, duration, minMB)
 	}
 
-	args := []string{"-y", "-i", input}
-	args = append(args, videoCodecArgs(format)...)
-	args = append(args,
-		"-b:v", fmt.Sprintf("%.0fk", videoKbps),
-		"-maxrate", fmt.Sprintf("%.0fk", videoKbps*1.25),
-		"-bufsize", fmt.Sprintf("%.0fk", videoKbps*2),
-		"-b:a", fmt.Sprintf("%.0fk", audioKbps),
-		output,
-	)
-	return a.runFFmpegWithProgressCtx(ctx, duration, args...)
+	for attempt := 0; attempt < 4; attempt++ {
+		select {
+		case <-ctx.Done():
+			_ = os.Remove(output)
+			return ctx.Err()
+		default:
+		}
+		if attempt > 0 {
+			a.emitProgress(12, fmt.Sprintf("Tuning size (pass %d/4)", attempt+1))
+		}
+		args := []string{"-y", "-i", input}
+		args = append(args, videoCodecArgs(format)...)
+		args = append(args,
+			"-b:v", fmt.Sprintf("%.0fk", videoKbps),
+			"-maxrate", fmt.Sprintf("%.0fk", videoKbps*1.5),
+			"-bufsize", fmt.Sprintf("%.0fk", videoKbps*3),
+			"-b:a", fmt.Sprintf("%.0fk", audioKbps),
+			output,
+		)
+		if err := a.runFFmpegWithProgressCtx(ctx, duration, args...); err != nil {
+			_ = os.Remove(output)
+			return err
+		}
+		actual := fileSize(output)
+		if actual == math.MaxInt64 {
+			return fmt.Errorf("encode finished but output file is missing")
+		}
+		// Overshoot: must stay strictly under target — shrink and retry.
+		if actual > targetBytes {
+			scale := float64(targetBytes) * 0.93 / float64(actual)
+			if scale < 0.5 {
+				scale = 0.5
+			}
+			videoKbps = math.Floor(videoKbps * scale)
+			if videoKbps < 80 {
+				return fmt.Errorf("could not fit video under %.2f MB (smallest pass was %s)", maxMB, humanSize(actual))
+			}
+			continue
+		}
+		// Close enough (>=85% of budget, and under target) — keep it.
+		if float64(actual) >= float64(targetBytes)*0.85 {
+			return nil
+		}
+		if attempt == 3 {
+			return nil // accept small file (trivial content can't fill budget)
+		}
+		// Far under budget — scale video bitrate toward 95% of target.
+		ratio := float64(targetBytes) * 0.95 / float64(actual)
+		if ratio < 1.05 {
+			return nil
+		}
+		if ratio > 2.5 {
+			ratio = 2.5 // avoid overshoot oscillation; next pass tunes again
+		}
+		videoKbps = math.Floor(videoKbps * ratio)
+		if videoKbps > 80000 {
+			videoKbps = 80000 // sanity cap (~80 Mbps)
+		}
+	}
+	return nil
 }
 
 func (a *App) runFFmpegWithCtx(ctx context.Context, args ...string) error {
@@ -1090,7 +1142,8 @@ func imageCompressionArgs(format string, quality int) []string {
 func videoCodecArgs(format string) []string {
 	switch format {
 	case "webm":
-		return []string{"-c:v", "libvpx-vp9", "-c:a", "libopus"}
+		// row-mt enables multithreading (speed only, no quality change).
+		return []string{"-c:v", "libvpx-vp9", "-deadline", "good", "-cpu-used", "1", "-row-mt", "1", "-c:a", "libopus"}
 	case "mp4", "m4v":
 		return []string{"-c:v", "libx264", "-preset", "medium", "-c:a", "aac", "-movflags", "+faststart"}
 	case "mkv":
