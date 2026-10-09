@@ -544,14 +544,6 @@ func (a *App) RepairVideo(inputPath string) (*FileInfo, error) {
 		return nil, errors.New("only video files need repairing")
 	}
 
-	dir := filepath.Dir(inputPath)
-	ext := normalizeFormat(info.Extension)
-	if ext == "" {
-		ext = "mp4"
-	}
-	base := strings.TrimSuffix(info.Name, filepath.Ext(info.Name)) + "-fixed"
-	fixedPath := uniqueOutputPath(dir, sanitizeFileName(base), ext)
-
 	baseCtx := a.ctx
 	if baseCtx == nil {
 		baseCtx = context.Background()
@@ -568,23 +560,103 @@ func (a *App) RepairVideo(inputPath string) (*FileInfo, error) {
 		cancel()
 	}()
 
-	a.emitProgress(10, "Repairing video")
-	// Fast remux: no re-encode, just rebuilds the container so duration/index is rewritten.
-	args := []string{"-y", "-i", inputPath, "-c", "copy", "-movflags", "+faststart", fixedPath}
-	if err := a.runFFmpegWithCtx(jobCtx, args...); err != nil {
-		if errors.Is(err, context.Canceled) || jobCtx.Err() == context.Canceled {
-			_ = os.Remove(fixedPath)
-			return nil, errors.New("cancelled")
-		}
-		_ = os.Remove(fixedPath)
+	// Kept for backwards-compat: now repairs silently in place (overwrites
+	// the original, no "-fixed" copy) so callers don't have to swap files.
+	if err := a.repairVideoInPlace(jobCtx, inputPath); err != nil {
 		return nil, err
 	}
-	if d, err := probeDuration(fixedPath); err != nil || d <= 0 {
-		_ = os.Remove(fixedPath)
-		return nil, errors.New("repair finished but the video duration is still unreadable — the file may be corrupted")
-	}
 	a.emitProgress(100, "Video repaired")
-	return inspectFile(fixedPath)
+	return inspectFile(inputPath)
+}
+
+// repairVideoInPlace fast-remuxes the video to a temp file in the same
+// directory (-c copy, no re-encode / no quality loss) and then atomically
+// replaces the original with the repaired copy. No separate "-fixed" file
+// is left behind.
+func (a *App) repairVideoInPlace(ctx context.Context, inputPath string) error {
+	dir := filepath.Dir(inputPath)
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(inputPath), "."))
+	if ext == "" {
+		ext = "mp4"
+	}
+	tmpFile, err := os.CreateTemp(dir, ".repair-*.tmp."+ext)
+	if err != nil {
+		return err
+	}
+	tmpPath := tmpFile.Name()
+	_ = tmpFile.Close()
+	// CreateTemp created the file; remove it so ffmpeg can write fresh with -y.
+	_ = os.Remove(tmpPath)
+	defer func() {
+		// Best-effort cleanup if replace fails.
+		if _, statErr := os.Stat(tmpPath); statErr == nil {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	a.emitProgress(10, "Repairing video")
+	// Fast remux: no re-encode, just rebuilds the container so duration/index is rewritten.
+	args := []string{"-y", "-i", inputPath, "-c", "copy", "-movflags", "+faststart", tmpPath}
+	if err := a.runFFmpegWithCtx(ctx, args...); err != nil {
+		_ = os.Remove(tmpPath)
+		if errors.Is(err, context.Canceled) || ctx.Err() == context.Canceled {
+			return errors.New("cancelled")
+		}
+		return err
+	}
+	if d, err := probeDuration(tmpPath); err != nil || d <= 0 {
+		_ = os.Remove(tmpPath)
+		return errors.New("repair finished but the video duration is still unreadable — the file may be corrupted")
+	}
+	// Atomically replace the original with the repaired copy.
+	if err := replaceFile(tmpPath, inputPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
+}
+
+// replaceFile moves src over dst. os.Rename can't overwrite on Windows,
+// so remove dst first when needed.
+func replaceFile(src, dst string) error {
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	} else {
+		// Fall back to remove + rename (Windows) or copy + remove (cross-device).
+		if rmErr := os.Remove(dst); rmErr != nil && !os.IsNotExist(rmErr) {
+			// If we can't remove dst, try a byte copy instead of failing outright.
+			if copyErr := copyFile(src, dst); copyErr != nil {
+				return rmErr
+			}
+			_ = os.Remove(src)
+			return nil
+		}
+		if err := os.Rename(src, dst); err != nil {
+			if copyErr := copyFile(src, dst); copyErr != nil {
+				return err
+			}
+			_ = os.Remove(src)
+			return nil
+		}
+		return nil
+	}
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Close()
 }
 
 func (a *App) Cancel() error {
@@ -752,7 +824,22 @@ func (a *App) processVideoWithCtx(ctx context.Context, input, output, format str
 	a.emitProgress(8, "Reading video")
 	duration, err := probeDuration(input)
 	if err != nil {
-		return err
+		// Silently auto-repair unreadable videos in place (overwrite original,
+		// no extra copy) and then continue with the requested operation.
+		if strings.Contains(err.Error(), errVideoNeedsRepairPrefix) {
+			if rerr := a.repairVideoInPlace(ctx, input); rerr != nil {
+				if errors.Is(rerr, context.Canceled) || ctx.Err() == context.Canceled {
+					return errors.New("cancelled")
+				}
+				return fmt.Errorf("video header is unreadable and auto-repair failed: %v", rerr)
+			}
+			duration, err = probeDuration(input)
+			if err != nil || duration <= 0 {
+				return errors.New("auto-repair finished but the video duration is still unreadable — the file may be corrupted")
+			}
+		} else {
+			return err
+		}
 	}
 	if duration <= 0 {
 		return errors.New("could not read video duration")
@@ -954,7 +1041,7 @@ func probeDuration(input string) (float64, error) {
 	if d, err := ffprobeDuration([]string{"-v", "error", "-show_entries", "stream=duration", "-of", "default=noprint_wrappers=1:nokey=1", input}); err == nil && d > 0 {
 		return d, nil
 	}
-	return 0, errors.New(errVideoNeedsRepairPrefix + "This video's duration can't be read (header says N/A), so compression can't start. Click \"Fix video & retry\" — it rebuilds the file quickly without losing quality, then compresses the fixed copy.")
+	return 0, errors.New(errVideoNeedsRepairPrefix + "This video's duration can't be read (header says N/A).")
 }
 
 func ffprobeDuration(args []string) (float64, error) {

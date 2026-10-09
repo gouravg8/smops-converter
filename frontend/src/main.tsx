@@ -12,7 +12,6 @@ import {
   Repeat2,
   Trash2,
   Upload,
-  Wrench,
   X
 } from 'lucide-react';
 import './index.css';
@@ -62,7 +61,6 @@ function App() {
   const [installingFFmpeg, setInstallingFFmpeg] = useState(false);
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [error, setError] = useState('');
-  const [fixingVideo, setFixingVideo] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -304,75 +302,6 @@ function App() {
     setProgressStage('Cancelling...');
   }
 
-  const needsRepair = error.includes('VIDEO_NEEDS_REPAIR');
-  function cleanErrorMessage(msg: string) {
-    return msg.replace('VIDEO_NEEDS_REPAIR::', '').trim();
-  }
-
-  async function fixVideoAndRetry() {
-    if (!file || fixingVideo) return;
-    setFixingVideo(true);
-    setBusy(true);
-    setError('');
-    setResult(null);
-    setProgress(0);
-    setProgressStage('Repairing video');
-    try {
-      const fixed = await appApi().RepairVideo(file.path);
-      setFile(fixed);
-      setProgress(0);
-      setProgressStage('Repair done — compressing fixed video');
-      await runJobWithBusy(fixed);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.toLowerCase().includes('cancel')) {
-        setProgressStage('Cancelled');
-      } else {
-        setError(msg);
-        setProgress(0);
-        setProgressStage('Ready');
-      }
-      setBusy(false);
-    } finally {
-      setFixingVideo(false);
-    }
-  }
-
-  // Same as runJob but assumes busy/fixing flags are already set (used after repair).
-  async function runJobWithBusy(effectiveFile: FileInfo) {
-    setError('');
-    setResult(null);
-    setProgress(0);
-    setProgressStage('Starting');
-    try {
-      const payload = {
-        inputPath: effectiveFile.path,
-        outputDir,
-        outputName,
-        format,
-        maxSizeMB,
-        mode: tab
-      };
-      const nextResult = tab === 'compress' ? await appApi().Compress(payload) : await appApi().Convert(payload);
-      setResult(nextResult);
-      setProgress(100);
-      setProgressStage('Complete');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.toLowerCase().includes('cancel')) {
-        setError('');
-        setProgress(0);
-        setProgressStage('Cancelled');
-      } else {
-        setError(msg);
-        setProgress(0);
-        setProgressStage('Ready');
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function installFFmpeg() {
     setInstallingFFmpeg(true);
     setError('');
@@ -591,7 +520,7 @@ function App() {
                 {busy ? (
                   <div className="grid grid-cols-[1fr_auto] gap-2">
                     <Button disabled className="h-[44px] text-[13px] font-semibold bg-primary/80 text-primary-foreground cursor-not-allowed">
-                      <Loader2 className="h-4 w-4 animate-spin" /> {fixingVideo || progressStage.toLowerCase().includes('repair') ? 'Repairing video...' : 'Working...'}
+                      <Loader2 className="h-4 w-4 animate-spin" /> {progressStage.toLowerCase().includes('repair') ? 'Repairing video...' : 'Working...'}
                     </Button>
                     <Button onClick={cancelJob} variant="outline" className="h-[44px] px-6 border-white/15 bg-transparent hover:bg-white/10 text-zinc-200 cursor-pointer">
                       <X className="h-4 w-4" /> Cancel
@@ -605,18 +534,8 @@ function App() {
                 )}
 
                 {error && (
-                  <div className="rounded-lg bg-red-500/[0.06] border border-red-500/20 p-3 space-y-3">
-                    <div className="text-sm font-medium text-red-400">{cleanErrorMessage(error)}</div>
-                    {needsRepair && (
-                      <Button
-                        onClick={fixVideoAndRetry}
-                        disabled={busy || fixingVideo || !file}
-                        className="w-full h-[40px] text-[13px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer disabled:opacity-40"
-                      >
-                        {fixingVideo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wrench className="h-4 w-4" />}
-                        {fixingVideo ? 'Repairing video...' : 'Fix video & retry'}
-                      </Button>
-                    )}
+                  <div className="rounded-lg bg-red-500/[0.06] border border-red-500/20 p-3">
+                    <div className="text-sm font-medium text-red-400">{error}</div>
                   </div>
                 )}
               </CardContent>
