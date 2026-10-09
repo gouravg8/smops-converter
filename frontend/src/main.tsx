@@ -359,12 +359,12 @@ function App() {
       onDrop={handleDrop}
     >
       {/* Top nav - premium black, no blue bg */}
-      <header className="h-[56px] flex items-center justify-between border-b border-white/[0.06] bg-[#0a0a0a] px-6 shrink-0">
+      <header className="h-14 flex items-center justify-between border-b border-white/6 bg-[#0a0a0a] px-6 shrink-0">
         <div className="flex items-center gap-3">
           <img src="/so-logo.png" alt="SmoothOps" className="h-6 w-auto object-contain opacity-90" onError={(e) => ((e.currentTarget.style.display = 'none'))} />
           <div className="flex items-baseline gap-2">
-            <span className="text-[15px] font-[700] tracking-[0.14em] text-zinc-100">SMOOTHOPS</span>
-            <span className="text-[15px] font-[300] tracking-wide text-zinc-400">Converter</span>
+            <span className="text-[15px] font-bold tracking-[0.14em] text-zinc-100">SMOOTHOPS</span>
+            <span className="text-[15px] font-light tracking-wide text-zinc-400">Converter</span>
           </div>
           <span className="hidden md:inline-flex ml-4 text-[11px] font-medium tracking-widest text-zinc-500 border-l border-white/10 pl-4">v{appVersion}</span>
         </div>
@@ -422,9 +422,9 @@ function App() {
 
       {/* Workspace - single centered column: file → options → action → result */}
       <main className="flex-1 w-full px-4 md:px-6 py-8 overflow-auto bg-[#080808]">
-        <div className="mx-auto w-full max-w-[640px] space-y-4">
+        <div className="mx-auto w-full max-w-160 space-y-4">
           <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="flex justify-center">
-            <TabsList className="bg-[#141414] border border-white/[0.06] p-1 h-10 rounded-lg">
+            <TabsList className="bg-[#141414] border border-white/6 p-1 h-10 rounded-lg">
               <TabsTrigger value="compress" disabled={busy} className="gap-2 px-5 rounded-md text-zinc-400 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm font-medium cursor-pointer disabled:opacity-40">
                 <Archive className="h-3.5 w-3.5" /> Compress
               </TabsTrigger>
@@ -447,10 +447,10 @@ function App() {
             </div>
           )}
 
-          <div className="rounded-xl border border-white/[0.06] bg-[#111111] shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset,0_1px_20px_rgba(0,0,0,0.4)] overflow-hidden">
+          <div className="rounded-xl border border-white/6 bg-[#111111] shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset,0_1px_20px_rgba(0,0,0,0.4)] overflow-hidden">
             {/* File */}
             {file ? (
-              <div className="flex items-center gap-4 p-5 border-b border-white/[0.06]">
+              <div className="flex items-center gap-4 p-5 border-b border-white/6">
                 <button
                   onClick={selectFile}
                   disabled={busy}
@@ -475,7 +475,7 @@ function App() {
                 onDragEnter={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`w-full flex flex-col items-center justify-center gap-3 px-6 py-12 text-center border-b border-white/[0.06] transition-colors ${busy ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${isDragOver ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]'}`}
+                className={`w-full flex flex-col items-center justify-center gap-3 px-6 py-12 text-center border-b border-white/6 transition-colors ${busy ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} ${isDragOver ? 'bg-white/6' : 'hover:bg-white/3'}`}
               >
                 <div className="h-12 w-12 grid place-items-center rounded-full bg-primary/15 text-primary border border-primary/20">
                   {isDragOver ? <Download className="h-5 w-5 animate-bounce" /> : <Upload className="h-5 w-5" />}
@@ -542,7 +542,7 @@ function App() {
             {/* Action — turns into the progress bar while running */}
             <div className="px-5 pb-5">
               {busy ? (
-                <div className="relative h-[44px] rounded-md bg-zinc-900 border border-white/10 overflow-hidden">
+                <div className="relative h-11 rounded-md bg-zinc-900 border border-white/10 overflow-hidden">
                   <div className="absolute inset-y-0 left-0 bg-primary/25 transition-[width] duration-300" style={{ width: `${progress}%` }} />
                   <div className="relative h-full flex items-center gap-3 pl-4 pr-1.5 text-[13px] font-medium text-zinc-100">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -554,7 +554,7 @@ function App() {
                   </div>
                 </div>
               ) : (
-                <Button onClick={() => runJob()} disabled={!ffmpegReady || !file} className="w-full h-[44px] text-[13px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_1px_0_rgba(255,255,255,0.1)_inset] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed">
+                <Button onClick={() => runJob()} disabled={!ffmpegReady || !file} className="w-full h-11 text-[13px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_1px_0_rgba(255,255,255,0.1)_inset] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed">
                   {tab === 'compress' ? <Archive className="h-4 w-4" /> : <Repeat2 className="h-4 w-4" />}
                   {actionLabel}
                 </Button>
@@ -566,8 +566,8 @@ function App() {
           </div>
 
           {error && (
-            <div className="rounded-lg bg-red-500/[0.06] border border-red-500/20 p-3">
-              <div className="text-sm font-medium text-red-400 break-words">{error}</div>
+            <div className="rounded-lg bg-red-500/6 border border-red-500/20 p-3">
+              <div className="text-sm font-medium text-red-400 wrap-break-word">{error}</div>
             </div>
           )}
 
@@ -608,7 +608,7 @@ function App() {
         </div>
       </main>
 
-      <footer className="h-9 flex items-center justify-center px-6 border-t border-white/[0.06] bg-[#050505] text-[11px] tracking-wide text-zinc-600 shrink-0">
+      <footer className="h-9 flex items-center justify-center px-6 border-t border-white/6 bg-[#050505] text-[11px] tracking-wide text-zinc-600 shrink-0">
         <span className="font-medium">SmoothOps © {new Date().getFullYear()} • NEXPRO AI LLP • All Rights Reserved.</span>
       </footer>
     </div>
