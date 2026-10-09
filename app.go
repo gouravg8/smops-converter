@@ -849,7 +849,11 @@ func (a *App) processVideoWithCtx(ctx context.Context, input, output, format str
 		args := []string{"-y", "-i", input}
 		args = append(args, videoCodecArgs(format)...)
 		args = append(args, output)
-		return a.runFFmpegWithProgressCtx(ctx, duration, args...)
+		if err := a.runFFmpegWithProgressCtx(ctx, duration, 12, 98, "Converting video", args...); err != nil {
+			return err
+		}
+		a.emitProgress(100, "Complete")
+		return nil
 	}
 	targetBits := maxMB * 1024 * 1024 * 8
 	targetBytes := int64(maxMB * 1024 * 1024)
@@ -871,6 +875,11 @@ func (a *App) processVideoWithCtx(ctx context.Context, input, output, format str
 		return fmt.Errorf("target %.1f MB too small for %.0fs video (needs ≥80 kbps video + 64 kbps audio). Try at least %.1f MB or use Convert without size limit", maxMB, duration, minMB)
 	}
 
+	passBands := [4][2]int{{12, 80}, {80, 92}, {92, 97}, {97, 99}}
+	done := func() error {
+		a.emitProgress(100, "Complete")
+		return nil
+	}
 	for attempt := 0; attempt < 4; attempt++ {
 		select {
 		case <-ctx.Done():
@@ -878,8 +887,9 @@ func (a *App) processVideoWithCtx(ctx context.Context, input, output, format str
 			return ctx.Err()
 		default:
 		}
+		stage := "Compressing video"
 		if attempt > 0 {
-			a.emitProgress(12, fmt.Sprintf("Tuning size (pass %d/4)", attempt+1))
+			stage = "Fine-tuning size"
 		}
 		args := []string{"-y", "-i", input}
 		args = append(args, videoCodecArgs(format)...)
@@ -890,7 +900,7 @@ func (a *App) processVideoWithCtx(ctx context.Context, input, output, format str
 			"-b:a", fmt.Sprintf("%.0fk", audioKbps),
 			output,
 		)
-		if err := a.runFFmpegWithProgressCtx(ctx, duration, args...); err != nil {
+		if err := a.runFFmpegWithProgressCtx(ctx, duration, passBands[attempt][0], passBands[attempt][1], stage, args...); err != nil {
 			_ = os.Remove(output)
 			return err
 		}
@@ -912,15 +922,15 @@ func (a *App) processVideoWithCtx(ctx context.Context, input, output, format str
 		}
 		// Close enough (>=85% of budget, and under target) — keep it.
 		if float64(actual) >= float64(targetBytes)*0.85 {
-			return nil
+			return done()
 		}
 		if attempt == 3 {
-			return nil // accept small file (trivial content can't fill budget)
+			return done() // accept small file (trivial content can't fill budget)
 		}
 		// Far under budget — scale video bitrate toward 95% of target.
 		ratio := float64(targetBytes) * 0.95 / float64(actual)
 		if ratio < 1.05 {
-			return nil
+			return done()
 		}
 		if ratio > 2.5 {
 			ratio = 2.5 // avoid overshoot oscillation; next pass tunes again
@@ -930,7 +940,7 @@ func (a *App) processVideoWithCtx(ctx context.Context, input, output, format str
 			videoKbps = 80000 // sanity cap (~80 Mbps)
 		}
 	}
-	return nil
+	return done()
 }
 
 func (a *App) runFFmpegWithCtx(ctx context.Context, args ...string) error {
@@ -957,7 +967,7 @@ func (a *App) runFFmpegWithCtx(ctx context.Context, args ...string) error {
 	return nil
 }
 
-func (a *App) runFFmpegWithProgressCtx(ctx context.Context, duration float64, args ...string) error {
+func (a *App) runFFmpegWithProgressCtx(ctx context.Context, duration float64, lo, hi int, stage string, args ...string) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -986,7 +996,7 @@ func (a *App) runFFmpegWithProgressCtx(ctx context.Context, duration float64, ar
 		return err
 	}
 	scanner := bufio.NewScanner(stdout)
-	a.emitProgress(12, "Processing video")
+	a.emitProgress(lo, stage)
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
@@ -1004,8 +1014,8 @@ func (a *App) runFFmpegWithProgressCtx(ctx context.Context, duration float64, ar
 			microseconds, parseErr := strconv.ParseFloat(value, 64)
 			if parseErr == nil && duration > 0 {
 				seconds := microseconds / 1000000
-				percent := 12 + int((seconds/duration)*86)
-				a.emitProgress(percent, "Processing video")
+				frac := math.Min(seconds/duration, 1)
+				a.emitProgress(lo+int(frac*float64(hi-lo)), stage)
 			}
 		}
 	}
@@ -1025,7 +1035,6 @@ func (a *App) runFFmpegWithProgressCtx(ctx context.Context, duration float64, ar
 	if err != nil {
 		return fmt.Errorf("ffmpeg failed: %s", strings.TrimSpace(stderr.String()))
 	}
-	a.emitProgress(100, "Complete")
 	return nil
 }
 
