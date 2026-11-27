@@ -1,8 +1,8 @@
 {
-  "version": "0.0.3",
-  "latestVersion": "0.0.3",
-  "url": "https://github.com/gouravg8/smops-converter/releases/download/v0.0.3/SmoothOps-Converter-0.0.3-linux-amd64.AppImage",
-  "notes": "initial release",
+  "version": "0.0.4",
+  "latestVersion": "0.0.4",
+  "url": "https://github.com/gouravg8/smops-converter/releases/download/v0.0.4/SmoothOps-Converter-0.0.4-linux-amd64",
+  "notes": "fix: auto-repair now works for videos whose real format differs from the file extension (e.g. WebM recordings saved as .mp4)",
   "mandatory": false,
-  "publishedAt": "2026-10-09"
+  "publishedAt": "2026-11-27"
 }
