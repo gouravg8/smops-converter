@@ -27,13 +27,13 @@ const AppVersion = "0.0.3"
 const UpdateManifestURL = "https://raw.githubusercontent.com/gouravg8/smops-converter/main/updates/windows/latest.json"
 
 type UpdateInfo struct {
-	Available       bool   `json:"available"`
-	CurrentVersion  string `json:"currentVersion"`
-	LatestVersion   string `json:"latestVersion"`
-	URL             string `json:"url"`
-	Notes           string `json:"notes"`
-	Mandatory       bool   `json:"mandatory"`
-	PublishedAt     string `json:"publishedAt"`
+	Available      bool   `json:"available"`
+	CurrentVersion string `json:"currentVersion"`
+	LatestVersion  string `json:"latestVersion"`
+	URL            string `json:"url"`
+	Notes          string `json:"notes"`
+	Mandatory      bool   `json:"mandatory"`
+	PublishedAt    string `json:"publishedAt"`
 }
 
 type App struct {
@@ -262,12 +262,12 @@ func fetchRemoteVersion(url string) (*UpdateInfo, error) {
 		return nil, err
 	}
 	var raw struct {
-		Version     string `json:"version"`
+		Version       string `json:"version"`
 		LatestVersion string `json:"latestVersion"`
-		URL         string `json:"url"`
-		Notes       string `json:"notes"`
-		Mandatory   bool   `json:"mandatory"`
-		PublishedAt string `json:"publishedAt"`
+		URL           string `json:"url"`
+		Notes         string `json:"notes"`
+		Mandatory     bool   `json:"mandatory"`
+		PublishedAt   string `json:"publishedAt"`
 	}
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, err
@@ -596,13 +596,24 @@ func (a *App) repairVideoInPlace(ctx context.Context, inputPath string) error {
 
 	a.emitProgress(10, "Repairing video")
 	// Fast remux: no re-encode, just rebuilds the container so duration/index is rewritten.
-	args := []string{"-y", "-i", inputPath, "-c", "copy", "-movflags", "+faststart", tmpPath}
-	if err := a.runFFmpegWithCtx(ctx, args...); err != nil {
+	var lastErr error
+	for _, muxer := range repairMuxers(probeFormatName(inputPath), ext) {
+		args := []string{"-y", "-i", inputPath, "-c", "copy"}
+		if muxer == "mp4" || muxer == "mov" {
+			args = append(args, "-movflags", "+faststart")
+		}
+		args = append(args, "-f", muxer, tmpPath)
+		lastErr = a.runFFmpegWithCtx(ctx, args...)
+		if lastErr == nil {
+			break
+		}
 		_ = os.Remove(tmpPath)
-		if errors.Is(err, context.Canceled) || ctx.Err() == context.Canceled {
+		if errors.Is(lastErr, context.Canceled) || ctx.Err() == context.Canceled {
 			return errors.New("cancelled")
 		}
-		return err
+	}
+	if lastErr != nil {
+		return lastErr
 	}
 	if d, err := probeDuration(tmpPath); err != nil || d <= 0 {
 		_ = os.Remove(tmpPath)
@@ -867,7 +878,7 @@ func (a *App) processVideoWithCtx(ctx context.Context, input, output, format str
 	}
 	if videoKbps < 80 {
 		minKbps := 80.0 + 64.0
-		minMB := (minKbps*1000*duration/fillFactor)/8/1024/1024
+		minMB := (minKbps * 1000 * duration / fillFactor) / 8 / 1024 / 1024
 		minMB = math.Ceil(minMB*10) / 10
 		if minMB < 0.5 {
 			minMB = 0.5
@@ -1103,6 +1114,50 @@ func probeDuration(input string) (float64, error) {
 		return d, nil
 	}
 	return 0, errors.New(errVideoNeedsRepairPrefix + "This video's duration can't be read (header says N/A).")
+}
+
+// probeFormatName returns ffprobe's detected container (e.g. "mov,mp4,m4a,3gp,3g2,mj2"
+// or "matroska,webm"), or "" if it can't be read.
+func probeFormatName(input string) string {
+	cmd := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=format_name", "-of", "default=noprint_wrappers=1:nokey=1", input)
+	hideCommandWindow(cmd)
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
+// repairMuxers lists ffmpeg muxers to try, in order, when remuxing a file for
+// repair. The first matches the real container; Matroska is the last resort
+// because it accepts virtually any codec for stream copy.
+func repairMuxers(formatName, ext string) []string {
+	var muxers []string
+	switch {
+	case strings.Contains(formatName, "matroska") || strings.Contains(formatName, "webm"):
+		if ext == "webm" {
+			muxers = append(muxers, "webm")
+		}
+	case strings.Contains(formatName, "mov") || strings.Contains(formatName, "mp4"):
+		if ext == "mov" {
+			muxers = append(muxers, "mov")
+		} else {
+			muxers = append(muxers, "mp4")
+		}
+	case strings.Contains(formatName, "avi"):
+		muxers = append(muxers, "avi")
+	case formatName == "":
+		// Unknown container: keep the old behaviour of trusting the extension.
+		switch ext {
+		case "mp4", "m4v":
+			muxers = append(muxers, "mp4")
+		case "mov":
+			muxers = append(muxers, "mov")
+		case "webm":
+			muxers = append(muxers, "webm")
+		}
+	}
+	return append(muxers, "matroska")
 }
 
 func ffprobeDuration(args []string) (float64, error) {
